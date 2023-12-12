@@ -5,6 +5,8 @@
 mod yak_shave;
 
 fn main() {
+    use tracing_subscriber::fmt::format::FmtTarget;
+
     tracing_subscriber::fmt()
         // enable everything
         .with_max_level(tracing::Level::TRACE)
@@ -13,7 +15,7 @@ fn main() {
         // display source code line numbers
         .with_line_number(true)
         // disable targets
-        .with_target(false)
+        .with_target(FmtTarget::Off)
         // sets this to be the default, global subscriber for this application.
         .init();
 

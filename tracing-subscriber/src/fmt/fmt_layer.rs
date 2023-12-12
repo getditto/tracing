@@ -1,6 +1,9 @@
 use crate::{
     field::RecordFields,
-    fmt::{format, FormatEvent, FormatFields, MakeWriter, TestWriter},
+    fmt::{
+        format::{self, FmtTarget},
+        FormatEvent, FormatFields, MakeWriter, TestWriter,
+    },
     layer::{self, Context},
     registry::{self, LookupSpan, SpanRef},
 };
@@ -33,11 +36,11 @@ use tracing_core::{
 /// Overriding the layer's behavior:
 ///
 /// ```rust
-/// use tracing_subscriber::{fmt, Registry};
+/// use tracing_subscriber::{fmt, fmt::format::FmtTarget, Registry};
 /// use tracing_subscriber::prelude::*;
 ///
 /// let fmt_layer = fmt::layer()
-///    .with_target(false) // don't include event targets when logging
+///    .with_target(FmtTarget::Off) // don't include event targets when logging
 ///    .with_level(false); // don't include event levels when logging
 ///
 /// let subscriber = Registry::default().with(fmt_layer);
@@ -47,13 +50,13 @@ use tracing_core::{
 /// Setting a custom event formatter:
 ///
 /// ```rust
-/// use tracing_subscriber::fmt::{self, format, time};
+/// use tracing_subscriber::fmt::{self, format, format::FmtTarget, time};
 /// use tracing_subscriber::prelude::*;
 ///
 /// let fmt = format().with_timer(time::Uptime::default());
 /// let fmt_layer = fmt::layer()
 ///     .event_format(fmt)
-///     .with_target(false);
+///     .with_target(FmtTarget::Off);
 /// # let subscriber = fmt_layer.with_subscriber(tracing_subscriber::registry::Registry::default());
 /// # tracing::subscriber::set_global_default(subscriber).unwrap();
 /// ```
@@ -464,7 +467,7 @@ where
     }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(self, display_target: bool) -> Layer<S, N, format::Format<L, T>, W> {
+    pub fn with_target(self, display_target: FmtTarget) -> Layer<S, N, format::Format<L, T>, W> {
         Layer {
             fmt_event: self.fmt_event.with_target(display_target),
             ..self
@@ -1490,7 +1493,7 @@ mod test {
         let subscriber = crate::fmt::Subscriber::builder()
             .with_writer(make_writer)
             .with_level(false)
-            .with_target(false)
+            .with_target(FmtTarget::Off)
             .with_ansi(false)
             .with_timer(MockTime)
             .with_span_events(FmtSpan::CLOSE)

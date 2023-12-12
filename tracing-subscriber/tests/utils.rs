@@ -22,9 +22,11 @@ fn init_ext_works() {
 #[test]
 #[cfg(feature = "fmt")]
 fn builders_are_init_ext() {
+    use tracing_subscriber::fmt::format::FmtTarget;
+
     tracing_subscriber::fmt().set_default();
     let _ = tracing_subscriber::fmt()
-        .with_target(false)
+        .with_target(FmtTarget::Off)
         .compact()
         .try_init();
 }

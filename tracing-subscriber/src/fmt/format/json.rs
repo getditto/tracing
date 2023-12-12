@@ -3,6 +3,7 @@ use crate::{
     field::{RecordFields, VisitOutput},
     fmt::{
         fmt_layer::{FmtContext, FormattedFields},
+        format::FmtTarget,
         writer::WriteAdaptor,
     },
     registry::LookupSpan,
@@ -270,8 +271,16 @@ where
                 serializer.serialize_entry("fields", &event.field_map())?;
             };
 
-            if self.display_target {
-                serializer.serialize_entry("target", meta.target())?;
+            match self.display_target {
+                FmtTarget::Full => serializer.serialize_entry("target", meta.target())?,
+                FmtTarget::Shortened => {
+                    let target = meta.target();
+                    let target_start = target
+                        .split_once(':')
+                        .map_or_else(|| target, |split| split.0);
+                    serializer.serialize_entry("target", target_start)?
+                }
+                FmtTarget::Off => {}
             }
 
             if self.display_filename {
