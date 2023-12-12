@@ -389,6 +389,74 @@ pub struct Compact;
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Full;
 
+/// Marker for [`Format`] that indicates that the balanced log format should be used.
+///
+/// This formatter tries to balance human-readability with conciseness by using multiple lines to
+/// display spans, but cutting down as much as possible on extraneous information (granular
+/// timestamp information, etc.) and introducing some pipe characters to help the eye scan log
+/// lines.
+///
+/// # Example Output
+///
+/// <pre><font color="#4E9A06"><b>:;</b></font> <font color="#4E9A06">cargo</font> run --example fmt-balanced
+/// <font color="#4E9A06"><b>    Finished</b></font> dev [unoptimized + debuginfo] target(s) in 0.08s
+/// <font color="#4E9A06"><b>     Running</b></font> `target/debug/examples/fmt-balanced`
+/// <font color="#4E9A06"> INFO</font> <font color="#AAAAAA">16:51:38</font> preparing to shave yaks <i>number_of_yaks</i><font color="#AAAAAA">=</font>3
+///     <font color="#AAAAAA">      from </font><font color="#AAAAAA">fmt_balanced</font>
+/// <font color="#4E9A06"> INFO</font> <font color="#AAAAAA">16:51:38</font> shaving yaks
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> hello! I'm gonna shave a yak <i>excitement</i><font color="#AAAAAA">=</font>"yay!"
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">├╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shave</font> { <i>yak</i><font color="#AAAAAA">=</font>1 }
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> yak shaved successfully
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">├╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shave</font> { <i>yak</i><font color="#AAAAAA">=</font>1 }
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#3465A4">DEBUG</font> <font color="#AAAAAA">16:51:38</font> <i>yak</i><font color="#AAAAAA">=</font>1 <i>shaved</i><font color="#AAAAAA">=</font>true
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">yak_events</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> <i>yaks_shaved</i><font color="#AAAAAA">=</font>1
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> hello! I'm gonna shave a yak <i>excitement</i><font color="#AAAAAA">=</font>"yay!"
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">├╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shave</font> { <i>yak</i><font color="#AAAAAA">=</font>2 }
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> yak shaved successfully
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">├╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shave</font> { <i>yak</i><font color="#AAAAAA">=</font>2 }
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#3465A4">DEBUG</font> <font color="#AAAAAA">16:51:38</font> <i>yak</i><font color="#AAAAAA">=</font>2 <i>shaved</i><font color="#AAAAAA">=</font>true
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">yak_events</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> <i>yaks_shaved</i><font color="#AAAAAA">=</font>2
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> hello! I'm gonna shave a yak <i>excitement</i><font color="#AAAAAA">=</font>"yay!"
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">├╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shave</font> { <i>yak</i><font color="#AAAAAA">=</font>3 }
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#C4A000"> WARN</font> <font color="#AAAAAA">16:51:38</font> could not locate yak
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">├╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shave</font> { <i>yak</i><font color="#AAAAAA">=</font>3 }
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#3465A4">DEBUG</font> <font color="#AAAAAA">16:51:38</font> <i>yak</i><font color="#AAAAAA">=</font>3 <i>shaved</i><font color="#AAAAAA">=</font>false
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">yak_events</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#CC0000">ERROR</font> <font color="#AAAAAA">16:51:38</font> failed to shave yak <i>yak</i><font color="#AAAAAA">=</font>3 <i>error</i><font color="#AAAAAA">=</font>missing yak <i>error</i><i>.sources</i><font color="#AAAAAA">=</font>[out of space, out of cash]
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#75507B">TRACE</font> <font color="#AAAAAA">16:51:38</font> <i>yaks_shaved</i><font color="#AAAAAA">=</font>2
+///     <font color="#AAAAAA">╷╴╴╴╴╴from </font><font color="#AAAAAA">fmt_balanced::yak_shave</font>
+///     <font color="#AAAAAA">└╴</font><font color="#AAAAAA">╴╴╴╴╴╴</font><font color="#AAAAAA">in shaving_yaks</font> { <i>yaks</i><font color="#AAAAAA">=</font>3 }
+/// <font color="#4E9A06"> INFO</font> <font color="#AAAAAA">16:51:38</font> yak shaving completed <i>all_yaks_shaved</i><font color="#AAAAAA">=</font>false
+///     <font color="#AAAAAA">      from </font><font color="#AAAAAA">fmt_balanced</font>
+/// </pre>
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct Balanced;
+
 /// Available display styles for the [target](tracing_core::Metadata::target) of each event.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FmtTarget {
@@ -639,6 +707,24 @@ impl<F, T> Format<F, T> {
         }
     }
 
+    /// Use an output format that balances human-readability with verbosity.
+    ///
+    /// See [`Balanced`].
+    pub fn balanced(self) -> Format<Balanced, T> {
+        Format {
+            format: Balanced,
+            timer: self.timer,
+            ansi: self.ansi,
+            display_target: self.display_target,
+            display_timestamp: self.display_timestamp,
+            display_level: self.display_level,
+            display_thread_id: self.display_thread_id,
+            display_thread_name: self.display_thread_name,
+            display_filename: self.display_filename,
+            display_line_number: self.display_line_number,
+        }
+    }
+
     /// Use an excessively pretty, human-readable output format.
     ///
     /// See [`Pretty`].
@@ -833,13 +919,13 @@ impl<F, T> Format<F, T> {
     }
 
     #[inline]
-    fn format_timestamp(&self, writer: &mut Writer<'_>) -> fmt::Result
+    fn format_timestamp(&self, writer: &mut Writer<'_>) -> Result<usize, fmt::Error>
     where
         T: FormatTime,
     {
         // If timestamps are disabled, do nothing.
         if !self.display_timestamp {
-            return Ok(());
+            return Ok(0);
         }
 
         // If ANSI color codes are enabled, format the timestamp with ANSI
@@ -852,22 +938,35 @@ impl<F, T> Format<F, T> {
 
                 // If getting the timestamp failed, don't bail --- only bail on
                 // formatting errors.
-                if self.timer.format_time(writer).is_err() {
-                    writer.write_str("<unknown time>")?;
-                }
+                let len = match self.timer.format_time(writer) {
+                    Ok(len) => len,
+                    Err(_) => {
+                        writer.write_str("<unknown time>")?;
+                        14 // The length of the above string
+                    }
+                };
 
                 write!(writer, "{} ", style.suffix())?;
-                return Ok(());
+
+                // We added a space, add 1.
+                return Ok(len + 1);
             }
         }
 
         // Otherwise, just format the timestamp without ANSI formatting.
         // If getting the timestamp failed, don't bail --- only bail on
         // formatting errors.
-        if self.timer.format_time(writer).is_err() {
-            writer.write_str("<unknown time>")?;
-        }
-        writer.write_char(' ')
+        let len = match self.timer.format_time(writer) {
+            Ok(len) => len,
+            Err(_) => {
+                writer.write_str("<unknown time>")?;
+                14 // The length of the above string
+            }
+        };
+
+        writer.write_char(' ')?;
+        // Add 1 since we wrote a space.
+        Ok(len + 1)
     }
 }
 
@@ -1202,6 +1301,188 @@ where
             }
         }
         writeln!(writer)
+    }
+}
+
+impl<S, N, T> FormatEvent<S, N> for Format<Balanced, T>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+    T: FormatTime,
+{
+    fn format_event(
+        &self,
+        ctx: &FmtContext<'_, S, N>,
+        mut writer: Writer<'_>,
+        event: &Event<'_>,
+    ) -> fmt::Result {
+        #[cfg(feature = "tracing-log")]
+        let normalized_meta = event.normalized_metadata();
+        #[cfg(feature = "tracing-log")]
+        let meta = normalized_meta.as_ref().unwrap_or_else(|| event.metadata());
+        #[cfg(not(feature = "tracing-log"))]
+        let meta = event.metadata();
+
+        // if the `Format` struct *also* has an ANSI color configuration,
+        // override the writer...the API for configuring ANSI color codes on the
+        // `Format` struct is deprecated, but we still need to honor those
+        // configurations.
+        if let Some(ansi) = self.ansi {
+            writer = writer.with_ansi(ansi);
+        }
+
+        if self.display_level {
+            let fmt_level = {
+                #[cfg(feature = "ansi")]
+                {
+                    FmtLevel::new(meta.level(), writer.has_ansi_escapes())
+                }
+                #[cfg(not(feature = "ansi"))]
+                {
+                    FmtLevel::new(meta.level())
+                }
+            };
+            write!(writer, "{} ", fmt_level)?;
+        }
+
+        let timestamp_len = self.format_timestamp(&mut writer)?;
+
+        if self.display_thread_name {
+            let current_thread = std::thread::current();
+            match current_thread.name() {
+                Some(name) => {
+                    write!(writer, "{} ", FmtThreadName::new(name))?;
+                }
+                // fall-back to thread id when name is absent and ids are not enabled
+                None if !self.display_thread_id => {
+                    write!(writer, "{:0>2?} ", current_thread.id())?;
+                }
+                _ => {}
+            }
+        }
+
+        if self.display_thread_id {
+            write!(writer, "{:0>2?} ", std::thread::current().id())?;
+        }
+
+        let dimmed = writer.dimmed();
+
+        let line_number = if self.display_line_number {
+            meta.line()
+        } else {
+            None
+        };
+
+        if self.display_filename {
+            if let Some(filename) = meta.file() {
+                write!(
+                    writer,
+                    "{}{}{}",
+                    dimmed.paint(filename),
+                    dimmed.paint(":"),
+                    if line_number.is_some() { "" } else { " " }
+                )?;
+            }
+        }
+
+        if let Some(line_number) = line_number {
+            write!(
+                writer,
+                "{}{}:{} ",
+                dimmed.prefix(),
+                line_number,
+                dimmed.suffix()
+            )?;
+        }
+
+        ctx.format_fields(writer.by_ref(), event)?;
+
+        writeln!(writer)?;
+
+        let mut mb_spans = ctx.event_scope().map(|scope| scope.peekable());
+
+        let target_padding = timestamp_len.saturating_sub(5) + 2;
+
+        match self.display_target {
+            FmtTarget::Full => {
+                let any_spans = mb_spans
+                    .as_mut()
+                    .map_or(false, |spans| spans.peek().is_some());
+
+                let prefix = if any_spans {
+                    format!("╷{}from ", "╴".repeat(target_padding - 1))
+                } else {
+                    format!("{}from ", " ".repeat(target_padding))
+                };
+
+                writeln!(
+                    writer,
+                    "    {}{}",
+                    dimmed.paint(prefix),
+                    dimmed.paint(meta.target())
+                )?;
+            }
+            FmtTarget::Shortened => {
+                let target = meta.target();
+                let target_start = target
+                    .split_once(':')
+                    .map_or_else(|| target, |split| split.0);
+
+                let any_spans = mb_spans
+                    .as_mut()
+                    .map_or(false, |spans| spans.peek().is_some());
+
+                let prefix = if any_spans && target_padding > 0 {
+                    format!("╷{}from ", " ".repeat(target_padding - 1))
+                } else {
+                    format!("{}from ", " ".repeat(target_padding))
+                };
+
+                writeln!(
+                    writer,
+                    "    {}{}",
+                    dimmed.paint(prefix),
+                    dimmed.paint(target_start)
+                )?;
+            }
+            FmtTarget::Off => {}
+        }
+
+        if let Some(mut spans) = mb_spans {
+            let span_padding = timestamp_len.saturating_sub(3) + 2;
+
+            while let Some(span) = spans.next() {
+                if spans.peek().is_some() {
+                    write!(
+                        writer,
+                        "    {}{}{} ",
+                        dimmed.paint("├╴"),
+                        dimmed.paint("╴".repeat(span_padding - 2)),
+                        dimmed.paint("in"),
+                    )?;
+                } else {
+                    write!(
+                        writer,
+                        "    {}{}{} ",
+                        dimmed.paint("└╴"),
+                        dimmed.paint("╴".repeat(span_padding - 2)),
+                        dimmed.paint("in"),
+                    )?;
+                }
+
+                write!(writer, "{}", dimmed.paint(span.metadata().name()))?;
+
+                let ext = span.extensions();
+                if let Some(fields) = &ext.get::<FormattedFields<N>>() {
+                    if !fields.is_empty() {
+                        write!(writer, " {} {} {}", "{", fields, "}")?;
+                    }
+                }
+                writeln!(writer)?;
+            }
+        };
+
+        Ok(())
     }
 }
 
@@ -1798,8 +2079,10 @@ pub(super) mod test {
 
     pub(crate) struct MockTime;
     impl FormatTime for MockTime {
-        fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
-            write!(w, "fake time")
+        fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
+            let time = "fake time";
+            write!(w, "{}", time)?;
+            Ok(time.len())
         }
     }
 

@@ -748,6 +748,19 @@ where
         }
     }
 
+    /// Sets the subscriber being built to use a balanced formatter.
+    ///
+    /// See [`format::Balanced`].
+    pub fn balanced(self) -> SubscriberBuilder<N, format::Format<format::Balanced, T>, F, W>
+    where
+        N: for<'writer> FormatFields<'writer> + 'static,
+    {
+        SubscriberBuilder {
+            filter: self.filter,
+            inner: self.inner.balanced(),
+        }
+    }
+
     /// Sets the subscriber being built to use an [excessively pretty, human-readable formatter](crate::fmt::format::Pretty).
     #[cfg(feature = "ansi")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ansi")))]

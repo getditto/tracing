@@ -50,7 +50,7 @@ pub trait FormatTime {
     /// When `format_time` is called, implementors should get the current time using their desired
     /// mechanism, and write it out to the given `fmt::Write`. Implementors must insert a trailing
     /// space themselves if they wish to separate the time from subsequent log message text.
-    fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result;
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error>;
 }
 
 /// Returns a new `SystemTime` timestamp provider.
@@ -90,19 +90,19 @@ impl<'a, F> FormatTime for &'a F
 where
     F: FormatTime,
 {
-    fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
         (*self).format_time(w)
     }
 }
 
 impl FormatTime for () {
-    fn format_time(&self, _: &mut Writer<'_>) -> fmt::Result {
-        Ok(())
+    fn format_time(&self, _: &mut Writer<'_>) -> Result<usize, fmt::Error> {
+        Ok(0)
     }
 }
 
-impl FormatTime for fn(&mut Writer<'_>) -> fmt::Result {
-    fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
+impl FormatTime for fn(&mut Writer<'_>) -> Result<usize, fmt::Error> {
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
         (*self)(w)
     }
 }
@@ -134,18 +134,18 @@ impl From<Instant> for Uptime {
 }
 
 impl FormatTime for SystemTime {
-    fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
-        write!(
-            w,
-            "{}",
-            datetime::DateTime::from(std::time::SystemTime::now())
-        )
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
+        let time = format!("{}", datetime::DateTime::from(std::time::SystemTime::now()));
+        write!(w, "{}", time)?;
+        Ok(time.len())
     }
 }
 
 impl FormatTime for Uptime {
-    fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
         let e = self.epoch.elapsed();
-        write!(w, "{:4}.{:09}s", e.as_secs(), e.subsec_nanos())
+        let time = format!("{:4}.{:09}s", e.as_secs(), e.subsec_nanos());
+        write!(w, "{}", time)?;
+        Ok(time.len())
     }
 }

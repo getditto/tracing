@@ -547,6 +547,22 @@ where
         }
     }
 
+    /// Sets the layer being built to use a [balanced formatter][super::format::Balanced].
+    pub fn balanced(self) -> Layer<S, N, format::Format<format::Balanced, T>, W>
+    where
+        N: for<'writer> FormatFields<'writer> + 'static,
+    {
+        Layer {
+            fmt_event: self.fmt_event.balanced(),
+            fmt_fields: self.fmt_fields,
+            fmt_span: self.fmt_span,
+            make_writer: self.make_writer,
+            is_ansi: self.is_ansi,
+            log_internal_errors: self.log_internal_errors,
+            _inner: self._inner,
+        }
+    }
+
     /// Sets the layer being built to use an [excessively pretty, human-readable formatter](crate::fmt::format::Pretty).
     #[cfg(feature = "ansi")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ansi")))]
