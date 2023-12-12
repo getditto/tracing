@@ -210,19 +210,42 @@ where
             )?;
         }
 
-        if self.display_target {
-            let target_style = if writer.has_ansi_escapes() {
-                style.bold()
-            } else {
-                style
-            };
-            write!(
-                writer,
-                "{}{}{}:",
-                target_style.prefix(),
-                meta.target(),
-                target_style.infix(style)
-            )?;
+        match self.display_target {
+            FmtTarget::Full => {
+                let target_style = if writer.has_ansi_escapes() {
+                    style.bold()
+                } else {
+                    style
+                };
+                write!(
+                    writer,
+                    "{}{}{}:",
+                    target_style.prefix(),
+                    meta.target(),
+                    target_style.infix(style)
+                )?;
+            }
+            FmtTarget::Shortened => {
+                let target_style = if writer.has_ansi_escapes() {
+                    style.bold()
+                } else {
+                    style
+                };
+
+                let target = meta.target();
+                let target_start = target
+                    .split_once(':')
+                    .map_or_else(|| target, |split| split.0);
+
+                write!(
+                    writer,
+                    "{}{}{}:",
+                    target_style.prefix(),
+                    target_start,
+                    target_style.infix(style)
+                )?;
+            }
+            FmtTarget::Off => {}
         }
         let line_number = if self.display_line_number {
             meta.line()
@@ -303,21 +326,38 @@ where
 
         for span in scope {
             let meta = span.metadata();
-            if self.display_target {
-                write!(
-                    writer,
-                    "    {} {}::{}",
-                    dimmed.paint("in"),
-                    meta.target(),
-                    bold.paint(meta.name()),
-                )?;
-            } else {
-                write!(
-                    writer,
-                    "    {} {}",
-                    dimmed.paint("in"),
-                    bold.paint(meta.name()),
-                )?;
+            match self.display_target {
+                FmtTarget::Full => {
+                    write!(
+                        writer,
+                        "    {} {}::{}",
+                        dimmed.paint("in"),
+                        meta.target(),
+                        bold.paint(meta.name()),
+                    )?;
+                }
+                FmtTarget::Shortened => {
+                    let target = meta.target();
+                    let target_start = target
+                        .split_once(':')
+                        .map_or_else(|| target, |split| split.0);
+
+                    write!(
+                        writer,
+                        "    {} {}::{}",
+                        dimmed.paint("in"),
+                        target_start,
+                        bold.paint(meta.name()),
+                    )?;
+                }
+                FmtTarget::Off => {
+                    write!(
+                        writer,
+                        "    {} {}",
+                        dimmed.paint("in"),
+                        bold.paint(meta.name()),
+                    )?;
+                }
             }
 
             let ext = span.extensions();

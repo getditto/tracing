@@ -256,11 +256,13 @@ pub trait FormatFields<'writer> {
 /// configuration. For example:
 ///
 /// ```rust
+/// use tracing_subscriber::fmt::format::FmtTarget;
+///
 /// let format = tracing_subscriber::fmt::format()
-///     .without_time()         // Don't include timestamps
-///     .with_target(false)     // Don't include event targets.
-///     .with_level(false)      // Don't include event levels.
-///     .compact();             // Use a more compact, abbreviated format.
+///     .without_time()              // Don't include timestamps
+///     .with_target(FmtTarget::Off) // Don't include event targets.
+///     .with_level(false)           // Don't include event levels.
+///     .compact();                  // Use a more compact, abbreviated format.
 ///
 /// // Use the configured formatter when building a new subscriber.
 /// tracing_subscriber::fmt()
@@ -387,6 +389,21 @@ pub struct Compact;
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Full;
 
+/// Available display styles for the [target](tracing_core::Metadata::target) of each event.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FmtTarget {
+    /// Show the entire target string.
+    Full,
+
+    /// Attempt to shorten the target string by truncating it at the first colon (`:`).
+    ///
+    /// If the target does not contain any colon characters, the full target will be shown.
+    Shortened,
+
+    /// Do not display the target string.
+    Off,
+}
+
 /// A pre-configured event formatter.
 ///
 /// You will usually want to use this as the `FormatEvent` for a `FmtSubscriber`.
@@ -403,7 +420,7 @@ pub struct Format<F = Full, T = SystemTime> {
     pub(crate) timer: T,
     pub(crate) ansi: Option<bool>,
     pub(crate) display_timestamp: bool,
-    pub(crate) display_target: bool,
+    pub(crate) display_target: FmtTarget,
     pub(crate) display_level: bool,
     pub(crate) display_thread_id: bool,
     pub(crate) display_thread_name: bool,
@@ -593,7 +610,7 @@ impl Default for Format<Full, SystemTime> {
             timer: SystemTime,
             ansi: None,
             display_timestamp: true,
-            display_target: true,
+            display_target: FmtTarget::Full,
             display_level: true,
             display_thread_id: false,
             display_thread_name: false,
@@ -746,7 +763,7 @@ impl<F, T> Format<F, T> {
     }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(self, display_target: bool) -> Format<F, T> {
+    pub fn with_target(self, display_target: FmtTarget) -> Format<F, T> {
         Format {
             display_target,
             ..self
@@ -981,13 +998,29 @@ where
             }
         };
 
-        if self.display_target {
-            write!(
-                writer,
-                "{}{} ",
-                dimmed.paint(meta.target()),
-                dimmed.paint(":")
-            )?;
+        match self.display_target {
+            FmtTarget::Full => {
+                write!(
+                    writer,
+                    "{}{} ",
+                    dimmed.paint(meta.target()),
+                    dimmed.paint(":")
+                )?;
+            }
+            FmtTarget::Shortened => {
+                let target = meta.target();
+                let target_start = target
+                    .split_once(':')
+                    .map_or_else(|| target, |split| split.0);
+
+                write!(
+                    writer,
+                    "{}{} ",
+                    dimmed.paint(target_start),
+                    dimmed.paint(":")
+                )?;
+            }
+            FmtTarget::Off => {}
         }
 
         let line_number = if self.display_line_number {
@@ -1099,19 +1132,36 @@ where
         let dimmed = writer.dimmed();
 
         let mut needs_space = false;
-        if self.display_target {
-            write!(
-                writer,
-                "{}{}",
-                dimmed.paint(meta.target()),
-                dimmed.paint(":")
-            )?;
-            needs_space = true;
+        match self.display_target {
+            FmtTarget::Full => {
+                write!(
+                    writer,
+                    "{}{}",
+                    dimmed.paint(meta.target()),
+                    dimmed.paint(":")
+                )?;
+                needs_space = true;
+            }
+            FmtTarget::Shortened => {
+                let target = meta.target();
+                let target_start = target
+                    .split_once(':')
+                    .map_or_else(|| target, |split| split.0);
+
+                write!(
+                    writer,
+                    "{}{}",
+                    dimmed.paint(target_start),
+                    dimmed.paint(":")
+                )?;
+                needs_space = true;
+            }
+            FmtTarget::Off => {}
         }
 
         if self.display_filename {
             if let Some(filename) = meta.file() {
-                if self.display_target {
+                if self.display_target != FmtTarget::Off {
                     writer.write_char(' ')?;
                 }
                 write!(writer, "{}{}", dimmed.paint(filename), dimmed.paint(":"))?;
@@ -1761,7 +1811,7 @@ pub(super) mod test {
             .with_writer(make_writer.clone())
             .without_time()
             .with_level(false)
-            .with_target(false)
+            .with_target(FmtTarget::Off)
             .with_thread_ids(false)
             .with_thread_names(false);
         #[cfg(feature = "ansi")]

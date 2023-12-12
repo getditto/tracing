@@ -3,13 +3,13 @@
 mod yak_shave;
 
 fn main() {
-    use tracing_subscriber::fmt;
+    use tracing_subscriber::fmt::{self, format::FmtTarget};
 
     // Configure a custom event formatter
     let format = fmt::format()
         .compact() // use an abbreviated format for logging spans
         .with_level(false) // don't include levels in formatted output
-        .with_target(false); // don't include targets
+        .with_target(FmtTarget::Off); // don't include targets
 
     // Create a `fmt` subscriber that uses our custom event format, and set it
     // as the default.

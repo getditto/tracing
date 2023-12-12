@@ -924,6 +924,7 @@ mod test {
     #[test]
     fn test_make_writer() {
         use std::sync::{Arc, Mutex};
+        use tracing_subscriber::fmt::format::FmtTarget;
         use tracing_subscriber::prelude::*;
 
         let format = format_description::parse(
@@ -953,7 +954,7 @@ mod test {
         let default = tracing_subscriber::fmt()
             .without_time()
             .with_level(false)
-            .with_target(false)
+            .with_target(FmtTarget::Off)
             .with_max_level(tracing_subscriber::filter::LevelFilter::TRACE)
             .with_writer(appender)
             .finish()
@@ -1006,6 +1007,7 @@ mod test {
     #[test]
     fn test_max_log_files() {
         use std::sync::{Arc, Mutex};
+        use tracing_subscriber::fmt::format::FmtTarget;
         use tracing_subscriber::prelude::*;
 
         let format = format_description::parse(
@@ -1035,7 +1037,7 @@ mod test {
         let default = tracing_subscriber::fmt()
             .without_time()
             .with_level(false)
-            .with_target(false)
+            .with_target(FmtTarget::Off)
             .with_max_level(tracing_subscriber::filter::LevelFilter::TRACE)
             .with_writer(appender)
             .finish()
