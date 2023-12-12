@@ -192,7 +192,6 @@
 // permissive licensing, and of not having licensing issues being an
 // obstacle to adoption, that text has been removed.
 
-
 use std::fmt;
 
 /// A date/time type which exists primarily to convert `SystemTime` timestamps into an ISO 8601
@@ -327,6 +326,42 @@ impl From<std::time::SystemTime> for DateTime {
             second: (remsecs % 60) as u8,
             nanos,
         }
+    }
+}
+
+/// Like [`DateTime`], but only shows the hours, minutes and seconds components of the time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ShortTime {
+    hour: u8,
+    minute: u8,
+    second: u8,
+}
+
+impl fmt::Display for ShortTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:02}:{:02}:{:02}", self.hour, self.minute, self.second,)
+    }
+}
+
+impl From<DateTime> for ShortTime {
+    fn from(date_time: DateTime) -> Self {
+        let DateTime {
+            hour,
+            minute,
+            second,
+            ..
+        } = date_time;
+        Self {
+            hour,
+            minute,
+            second,
+        }
+    }
+}
+
+impl From<std::time::SystemTime> for ShortTime {
+    fn from(timestamp: std::time::SystemTime) -> Self {
+        DateTime::from(timestamp).into()
     }
 }
 
