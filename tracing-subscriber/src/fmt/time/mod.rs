@@ -111,6 +111,10 @@ impl FormatTime for fn(&mut Writer<'_>) -> Result<usize, fmt::Error> {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub struct SystemTime;
 
+/// Retrieve and print just the hours, minutes and seconds of the current wall-clock time.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
+pub struct ShortSystemTime;
+
 /// Retrieve and print the relative elapsed wall-clock time since an epoch.
 ///
 /// The `Default` implementation for `Uptime` makes the epoch the current time.
@@ -136,6 +140,17 @@ impl From<Instant> for Uptime {
 impl FormatTime for SystemTime {
     fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
         let time = format!("{}", datetime::DateTime::from(std::time::SystemTime::now()));
+        write!(w, "{}", time)?;
+        Ok(time.len())
+    }
+}
+
+impl FormatTime for ShortSystemTime {
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
+        let time = format!(
+            "{}",
+            datetime::ShortTime::from(std::time::SystemTime::now())
+        );
         write!(w, "{}", time)?;
         Ok(time.len())
     }
