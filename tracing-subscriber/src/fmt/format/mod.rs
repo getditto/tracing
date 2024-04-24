@@ -1455,18 +1455,16 @@ where
                 if spans.peek().is_some() {
                     write!(
                         writer,
-                        "    {}{}{} ",
+                        "    {}{} ",
                         dimmed.paint("├╴"),
-                        dimmed.paint("╴".repeat(span_padding - 2)),
-                        dimmed.paint("in"),
+                        dimmed.paint("╴".repeat(span_padding)),
                     )?;
                 } else {
                     write!(
                         writer,
-                        "    {}{}{} ",
+                        "    {}{} ",
                         dimmed.paint("└╴"),
-                        dimmed.paint("╴".repeat(span_padding - 2)),
-                        dimmed.paint("in"),
+                        dimmed.paint("╴".repeat(span_padding)),
                     )?;
                 }
 
