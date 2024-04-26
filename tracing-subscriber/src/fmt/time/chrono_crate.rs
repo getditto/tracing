@@ -14,7 +14,6 @@ use std::sync::Arc;
 ///
 /// [local time]: chrono::Local::now()
 /// [formatter]: chrono::format
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ChronoLocal {
     format: Arc<ChronoFmtType>,
@@ -43,19 +42,19 @@ impl ChronoLocal {
 }
 
 impl FormatTime for ChronoLocal {
-    fn format_time(&self, w: &mut Writer<'_>) -> alloc::fmt::Result {
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, core::fmt::Error> {
         let t = chrono::Local::now();
         match self.format.as_ref() {
             ChronoFmtType::Rfc3339 => {
                 use chrono::format::{Fixed, Item};
-                write!(
-                    w,
-                    "{}",
-                    t.format_with_items(core::iter::once(Item::Fixed(Fixed::RFC3339)))
-                )
+                let t_str = t.format_with_items(core::iter::once(Item::Fixed(Fixed::RFC3339))).to_string();
+                write!(w, "{}", t_str)?;
+                Ok(t_str.len())
             }
             ChronoFmtType::Custom(fmt) => {
-                write!(w, "{}", t.format(fmt))
+                let t_str = t.format(fmt).to_string();
+                write!(w, "{}", t_str)?;
+                Ok(t_str.len())
             }
         }
     }
@@ -65,7 +64,6 @@ impl FormatTime for ChronoLocal {
 ///
 /// [UTC time]: chrono::Utc::now()
 /// [formatter]: chrono::format
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ChronoUtc {
     format: Arc<ChronoFmtType>,
@@ -94,12 +92,14 @@ impl ChronoUtc {
 }
 
 impl FormatTime for ChronoUtc {
-    fn format_time(&self, w: &mut Writer<'_>) -> alloc::fmt::Result {
+    fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, core::fmt::Error> {
         let t = chrono::Utc::now();
-        match self.format.as_ref() {
-            ChronoFmtType::Rfc3339 => w.write_str(&t.to_rfc3339()),
-            ChronoFmtType::Custom(fmt) => w.write_str(&format!("{}", t.format(fmt))),
-        }
+        let t_str = match self.format.as_ref() {
+            ChronoFmtType::Rfc3339 => t.to_rfc3339(),
+            ChronoFmtType::Custom(fmt) => format!("{}", t.format(fmt)),
+        };
+        w.write_str(&t_str)?;
+        Ok(t_str.len())
     }
 }
 

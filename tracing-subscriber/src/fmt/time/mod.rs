@@ -21,15 +21,8 @@ pub use time_crate::LocalTime;
 pub use time_crate::OffsetTime;
 
 /// [`chrono`]-based implementation for [`FormatTime`].
-#[cfg(feature = "chrono")]
 mod chrono_crate;
-
-#[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 pub use chrono_crate::ChronoLocal;
-
-#[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 pub use chrono_crate::ChronoUtc;
 
 /// A type that can measure and format the current time.
