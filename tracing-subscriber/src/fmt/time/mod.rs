@@ -137,9 +137,25 @@ impl From<Instant> for Uptime {
     }
 }
 
+mod time {
+    use std::time::SystemTime;
+
+    #[doc(hidden)]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn now() -> SystemTime {
+        SystemTime::now()
+    }
+
+    #[doc(hidden)]
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn now() -> SystemTime {
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(js_sys::Date::now() as u64)
+    }
+}
+
 impl FormatTime for SystemTime {
     fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
-        let time = format!("{}", datetime::DateTime::from(std::time::SystemTime::now()));
+        let time = format!("{}", datetime::DateTime::from(time::now()));
         write!(w, "{}", time)?;
         Ok(time.len())
     }
@@ -149,7 +165,7 @@ impl FormatTime for ShortSystemTime {
     fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
         let time = format!(
             "{}",
-            datetime::ShortTime::from(std::time::SystemTime::now())
+            datetime::ShortTime::from(time::now())
         );
         write!(w, "{}", time)?;
         Ok(time.len())
