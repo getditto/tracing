@@ -1460,20 +1460,24 @@ impl<'a> fmt::Display for FmtThreadName<'a> {
     }
 }
 
-struct FmtLevel<'a> {
+/// Formats a [`Level`], optionally applying an ANSI color code to the string.
+#[derive(Debug)]
+pub struct FmtLevel<'a> {
     level: &'a Level,
     #[cfg(feature = "ansi")]
     ansi: bool,
 }
 
 impl<'a> FmtLevel<'a> {
+    /// Create a new [`FmtLevel`] for the provided level, with optional ANSI color code formatting.
     #[cfg(feature = "ansi")]
-    pub(crate) fn new(level: &'a Level, ansi: bool) -> Self {
+    pub fn new(level: &'a Level, ansi: bool) -> Self {
         Self { level, ansi }
     }
 
+    /// Create a new [`FmtLevel`] for the provided level.
     #[cfg(not(feature = "ansi"))]
-    pub(crate) fn new(level: &'a Level) -> Self {
+    pub fn new(level: &'a Level) -> Self {
         Self { level }
     }
 }
