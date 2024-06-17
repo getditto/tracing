@@ -90,8 +90,13 @@ pub struct Filtered<L, F, S> {
 #[derive(Copy, Clone)]
 pub struct FilterId(u64);
 
-/// A bitmap tracking which [`FilterId`]s have enabled a given span or
+/// A bitmap tracking which [`FilterId`]s have disabled a given span or
 /// event.
+///
+/// The additional bitmap `seen` tracks which [`FilterId`]s have *seen* the
+/// span/event in question (i.e. they've had a chance to disable it, regardless
+/// of whether they actually did). This is used in [`FilterState`] to determine
+/// if we're in a re-entrant call, so we can maintain a stack of `FilterMap`s.
 ///
 /// This is currently a private type that's used exclusively by the
 /// [`Registry`]. However, in the future, this may become a public API, in order
@@ -101,7 +106,8 @@ pub struct FilterId(u64);
 /// [`Filter`]: crate::layer::Filter
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct FilterMap {
-    bits: u64,
+    disabled: u64,
+    seen: u64,
 }
 
 /// The current state of `enabled` calls to per-layer filters on this
@@ -133,11 +139,14 @@ pub(crate) struct FilterMap {
 #[derive(Debug)]
 pub(crate) struct FilterState {
     enabled: Cell<FilterMap>,
+
     // TODO(eliza): `Interest`s should _probably_ be `Copy`. The only reason
     // they're not is our Obsessive Commitment to Forwards-Compatibility. If
     // this changes in tracing-core`, we can make this a `Cell` rather than
     // `RefCell`...
     interest: RefCell<Option<Interest>>,
+
+    nested: RefCell<Option<Box<FilterState>>>,
 
     #[cfg(debug_assertions)]
     counters: DebugCounters,
@@ -1035,23 +1044,46 @@ impl FilterMap {
 
         if enabled {
             Self {
-                bits: self.bits & (!mask),
+                disabled: self.disabled & (!mask),
+                seen: self.seen | mask,
             }
         } else {
             Self {
-                bits: self.bits | mask,
+                disabled: self.disabled | mask,
+                seen: self.seen | mask,
             }
+        }
+    }
+
+    pub(crate) fn clear_seen(self, FilterId(mask): FilterId) -> Self {
+        if mask == std::u64::MAX {
+            return self;
+        }
+
+        Self {
+            disabled: self.disabled,
+            seen: self.seen & (!mask),
         }
     }
 
     #[inline]
     pub(crate) fn is_enabled(self, FilterId(mask): FilterId) -> bool {
-        self.bits & mask == 0
+        self.disabled & mask == 0
+    }
+
+    #[inline]
+    pub(crate) fn has_seen(self, FilterId(mask): FilterId) -> bool {
+        self.seen & mask != 0
     }
 
     #[inline]
     pub(crate) fn any_enabled(self) -> bool {
-        self.bits != std::u64::MAX
+        self.disabled != std::u64::MAX
+    }
+
+    #[inline]
+    pub(crate) fn any_seen(self) -> bool {
+        self.seen != 0
     }
 }
 
@@ -1059,10 +1091,15 @@ impl fmt::Debug for FilterMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let alt = f.alternate();
         let mut s = f.debug_struct("FilterMap");
-        s.field("disabled_by", &format_args!("{:?}", &FmtBitset(self.bits)));
+        s.field(
+            "disabled_by",
+            &format_args!("{:?}", &FmtBitset(self.disabled)),
+        );
+        s.field("seen_by", &format_args!("{:?}", &FmtBitset(self.seen)));
 
         if alt {
-            s.field("bits", &format_args!("{:b}", self.bits));
+            s.field("disabled_bits", &format_args!("{:b}", self.disabled));
+            s.field("seen_bits", &format_args!("{:b}", self.seen));
         }
 
         s.finish()
@@ -1072,7 +1109,8 @@ impl fmt::Debug for FilterMap {
 impl fmt::Binary for FilterMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FilterMap")
-            .field("bits", &format_args!("{:b}", self.bits))
+            .field("disabled", &format_args!("{:b}", self.disabled))
+            .field("seen", &format_args!("{:b}", self.seen))
             .finish()
     }
 }
@@ -1087,7 +1125,48 @@ impl FilterState {
 
             #[cfg(debug_assertions)]
             counters: DebugCounters::default(),
+
+            nested: RefCell::new(None),
         }
+    }
+
+    /// Push the current filter state to the stack of filter states in
+    /// `self.nested`.
+    ///
+    /// The debug-mode-only `self.counters` is left in place.
+    fn push(&self) {
+        // Since we can't move `self`, the most straightforward way to do this
+        // is to create a new empty `FilterState` and swap the contents of each
+        // individual `Cell`/`RefCell` field.
+        let nested = Self::new();
+
+        self.enabled.swap(&nested.enabled);
+        self.interest.swap(&nested.interest);
+        // Any filters already nested in `self` represent an existing stack, and
+        // so should now be nested under the new top of the stack.
+        self.nested.swap(&nested.nested);
+
+        // Our state has been moved into `nested`, leaving us with fresh values
+        // for our fields, so nest `nested` under `self`.
+        self.nested.replace(Some(Box::new(nested)));
+    }
+
+    /// Pop a filter state off of the stack of nested filter states in
+    /// `self.nested`, replacing `self`. If there are no nested states, clear
+    /// `self` by replacing it with fresh values à la [`Self::new()`].
+    ///
+    /// The debug-mode-only `self.counters` is preserved.
+    fn pop_or_clear(&self) {
+        // Like in `push()`, we can't move `self`. Instead, let's just overwrite
+        // the values of each of our fields by swapping them out from the fields
+        // of `self.nested`.
+        let to_swap = self.nested.take().unwrap_or_else(|| Box::new(Self::new()));
+
+        self.enabled.swap(&to_swap.enabled);
+        self.interest.swap(&to_swap.interest);
+        // If there were additional nested filter states under `self.nested`,
+        // they'll now become nested under `self`.
+        self.nested.swap(&to_swap.nested);
     }
 
     fn set(&self, filter: FilterId, enabled: bool) {
@@ -1103,6 +1182,15 @@ impl FilterState {
                 0,
                 "if we are in or starting a filter pass, we must not be in an interest pass."
             )
+        }
+
+        if self.enabled.get().has_seen(filter) {
+            // We're in a nested call! We've already seen this filter in this
+            // pass, but we're about to set our `enabled` state again, which
+            // means this is not a clean filter. We need to push the current
+            // filter state to the stack of nested filters and start with a new
+            // one.
+            self.push();
         }
 
         self.enabled.set(self.enabled.get().set(filter, enabled))
@@ -1160,19 +1248,24 @@ impl FilterState {
     /// This is used to implement the `on_event` and `new_span` methods for
     /// `Filtered`.
     fn did_enable(&self, filter: FilterId, f: impl FnOnce()) {
-        let map = self.enabled.get();
-        if map.is_enabled(filter) {
+        if self.enabled.get().is_enabled(filter) {
             // If the filter didn't disable the current span/event, run the
             // callback.
             f();
-        } else {
-            // Otherwise, if this filter _did_ disable the span or event
-            // currently being processed, clear its bit from this thread's
-            // `FilterState`. The bit has already been "consumed" by skipping
-            // this callback, and we need to ensure that the `FilterMap` for
-            // this thread is reset when the *next* `enabled` call occurs.
-            self.enabled.set(map.set(filter, true));
         }
+
+        // Now that we've processed the filter value for this span/event, clear our _seen_
+        // status only (not our enablement status).
+        //
+        // We have to re-`get()` `self.enabled` here because `f()` may have modified the filter.
+        self.enabled.set(self.enabled.get().clear_seen(filter));
+
+        if !self.enabled.get().any_seen() {
+            // We were the last filter that's seen this one to have cleared our seen state. We
+            // should pop from the stack and return to the filter from the outer nested event.
+            self.pop_or_clear();
+        }
+
         #[cfg(debug_assertions)]
         {
             let in_current_pass = self.counters.in_filter_pass.get();
@@ -1202,13 +1295,14 @@ impl FilterState {
     ///
     /// This resets the [`FilterMap`] and current [`Interest`] as well as
     /// clearing the debug counters.
-    pub(crate) fn clear_enabled() {
+    pub(crate) fn clear_state() {
         // Drop the `Result` returned by `try_with` --- if we are in the middle
         // a panic and the thread-local has been torn down, that's fine, just
         // ignore it ratehr than panicking.
         let _ = FILTERING.try_with(|filtering| {
-            filtering.enabled.set(FilterMap::default());
+            filtering.pop_or_clear();
 
+            // TODO: is this needed?
             #[cfg(debug_assertions)]
             filtering.counters.in_filter_pass.set(0);
         });

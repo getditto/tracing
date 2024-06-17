@@ -106,9 +106,9 @@ where
 
             // If per-layer filters are in use, and we are short-circuiting
             // (rather than calling into the inner type), clear the current
-            // per-layer filter `enabled` state.
+            // per-layer filter state.
             #[cfg(feature = "registry")]
-            filter::FilterState::clear_enabled();
+            filter::FilterState::clear_state();
 
             false
         }
