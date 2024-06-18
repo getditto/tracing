@@ -138,7 +138,7 @@ pub(crate) struct FilterMap {
 ///     recording a span or event can be skipped entirely.
 #[derive(Debug)]
 pub(crate) struct FilterState {
-    enabled: Cell<FilterMap>,
+    filter_maps: FilterMapStack,
 
     // TODO(eliza): `Interest`s should _probably_ be `Copy`. The only reason
     // they're not is our Obsessive Commitment to Forwards-Compatibility. If
@@ -146,10 +146,50 @@ pub(crate) struct FilterState {
     // `RefCell`...
     interest: RefCell<Option<Interest>>,
 
-    nested: RefCell<Option<Box<FilterState>>>,
-
     #[cfg(debug_assertions)]
     counters: DebugCounters,
+}
+
+#[derive(Debug, Default)]
+struct FilterMapStack {
+    current: Cell<FilterMap>,
+
+    nested: RefCell<Option<Box<FilterMapStack>>>,
+}
+
+impl FilterMapStack {
+    /// Push the current filter map to the stack of filter maps in
+    /// `self.nested`.
+    fn push(&self) {
+        // Since we can't move `self`, the most straightforward way to do this
+        // is to create a new empty `FilterState` and swap the contents of each
+        // individual `Cell`/`RefCell` field.
+        let nested = FilterMapStack::default();
+
+        self.current.swap(&nested.current);
+        // Any filters already nested in `self` represent an existing stack, and
+        // so should now be nested under the new top of the stack.
+        self.nested.swap(&nested.nested);
+
+        // Our state has been moved into `nested`, leaving us with fresh values
+        // for our fields, so nest `nested` under `self`.
+        self.nested.replace(Some(Box::new(nested)));
+    }
+
+    /// Pop a filter map off of the stack of nested filter maps in
+    /// `self.nested`, replacing `self`. If there are no nested map, clear
+    /// `self` by replacing it with fresh values à la [`Self::default()`].
+    fn pop_or_clear(&self) {
+        // Like in `push()`, we can't move `self`. Instead, let's just overwrite
+        // the values of our fields by swapping them out from the fields of
+        // `self.nested`.
+        let to_swap = self.nested.take().unwrap_or_default();
+
+        self.current.swap(&to_swap.current);
+        // If there were additional nested filter maps under `self.nested`,
+        // they'll now become nested under `self`.
+        self.nested.swap(&to_swap.nested);
+    }
 }
 
 /// Extra counters added to `FilterState` used only to make debug assertions.
@@ -1120,53 +1160,12 @@ impl fmt::Binary for FilterMap {
 impl FilterState {
     fn new() -> Self {
         Self {
-            enabled: Cell::new(FilterMap::default()),
+            filter_maps: FilterMapStack::default(),
             interest: RefCell::new(None),
 
             #[cfg(debug_assertions)]
             counters: DebugCounters::default(),
-
-            nested: RefCell::new(None),
         }
-    }
-
-    /// Push the current filter state to the stack of filter states in
-    /// `self.nested`.
-    ///
-    /// The debug-mode-only `self.counters` is left in place.
-    fn push(&self) {
-        // Since we can't move `self`, the most straightforward way to do this
-        // is to create a new empty `FilterState` and swap the contents of each
-        // individual `Cell`/`RefCell` field.
-        let nested = Self::new();
-
-        self.enabled.swap(&nested.enabled);
-        self.interest.swap(&nested.interest);
-        // Any filters already nested in `self` represent an existing stack, and
-        // so should now be nested under the new top of the stack.
-        self.nested.swap(&nested.nested);
-
-        // Our state has been moved into `nested`, leaving us with fresh values
-        // for our fields, so nest `nested` under `self`.
-        self.nested.replace(Some(Box::new(nested)));
-    }
-
-    /// Pop a filter state off of the stack of nested filter states in
-    /// `self.nested`, replacing `self`. If there are no nested states, clear
-    /// `self` by replacing it with fresh values à la [`Self::new()`].
-    ///
-    /// The debug-mode-only `self.counters` is preserved.
-    fn pop_or_clear(&self) {
-        // Like in `push()`, we can't move `self`. Instead, let's just overwrite
-        // the values of each of our fields by swapping them out from the fields
-        // of `self.nested`.
-        let to_swap = self.nested.take().unwrap_or_else(|| Box::new(Self::new()));
-
-        self.enabled.swap(&to_swap.enabled);
-        self.interest.swap(&to_swap.interest);
-        // If there were additional nested filter states under `self.nested`,
-        // they'll now become nested under `self`.
-        self.nested.swap(&to_swap.nested);
     }
 
     fn set(&self, filter: FilterId, enabled: bool) {
@@ -1174,7 +1173,10 @@ impl FilterState {
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass == 0 {
-                debug_assert_eq!(self.enabled.get().disabled, FilterMap::default().disabled);
+                debug_assert_eq!(
+                    self.filter_maps.current.get().disabled,
+                    FilterMap::default().disabled
+                );
             }
             self.counters.in_filter_pass.set(in_current_pass + 1);
             debug_assert_eq!(
@@ -1184,16 +1186,18 @@ impl FilterState {
             )
         }
 
-        if self.enabled.get().has_seen(filter) {
+        if self.filter_maps.current.get().has_seen(filter) {
             // We're in a nested call! We've already seen this filter in this
             // pass, but we're about to set our `enabled` state again, which
             // means this is not a clean filter. We need to push the current
-            // filter state to the stack of nested filters and start with a new
+            // filter map to the stack of nested filters and start with a new
             // one.
-            self.push();
+            self.filter_maps.push();
         }
 
-        self.enabled.set(self.enabled.get().set(filter, enabled))
+        self.filter_maps
+            .current
+            .set(self.filter_maps.current.get().set(filter, enabled))
     }
 
     fn add_interest(&self, interest: Interest) {
@@ -1224,12 +1228,12 @@ impl FilterState {
     pub(crate) fn event_enabled() -> bool {
         FILTERING
             .try_with(|this| {
-                let enabled = this.enabled.get().any_enabled();
+                let enabled = this.filter_maps.current.get().any_enabled();
                 #[cfg(debug_assertions)]
                 {
                     if this.counters.in_filter_pass.get() == 0 {
                         debug_assert_eq!(
-                            this.enabled.get().disabled,
+                            this.filter_maps.current.get().disabled,
                             FilterMap::default().disabled
                         );
                     }
@@ -1251,7 +1255,7 @@ impl FilterState {
     /// This is used to implement the `on_event` and `new_span` methods for
     /// `Filtered`.
     fn did_enable(&self, filter: FilterId, f: impl FnOnce()) {
-        if self.enabled.get().is_enabled(filter) {
+        if self.filter_maps.current.get().is_enabled(filter) {
             // If the filter didn't disable the current span/event, run the
             // callback.
             f();
@@ -1261,19 +1265,24 @@ impl FilterState {
         // status only (not our enablement status).
         //
         // We have to re-`get()` `self.enabled` here because `f()` may have modified the filter.
-        self.enabled.set(self.enabled.get().clear_seen(filter));
+        self.filter_maps
+            .current
+            .set(self.filter_maps.current.get().clear_seen(filter));
 
-        if !self.enabled.get().any_seen() {
+        if !self.filter_maps.current.get().any_seen() {
             // We were the last filter that's seen this one to have cleared our seen state. We
             // should pop from the stack and return to the filter from the outer nested event.
-            self.pop_or_clear();
+            self.filter_maps.pop_or_clear();
         }
 
         #[cfg(debug_assertions)]
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass <= 1 {
-                debug_assert_eq!(self.enabled.get().disabled, FilterMap::default().disabled);
+                debug_assert_eq!(
+                    self.filter_maps.current.get().disabled,
+                    FilterMap::default().disabled
+                );
             }
             self.counters
                 .in_filter_pass
@@ -1288,8 +1297,10 @@ impl FilterState {
 
     /// Run a second filtering pass, e.g. for Layer::event_enabled.
     fn and(&self, filter: FilterId, f: impl FnOnce() -> bool) -> bool {
-        let enabled = self.enabled.get().is_enabled(filter) && f();
-        self.enabled.set(self.enabled.get().set(filter, enabled));
+        let enabled = self.filter_maps.current.get().is_enabled(filter) && f();
+        self.filter_maps
+            .current
+            .set(self.filter_maps.current.get().set(filter, enabled));
         enabled
     }
 
@@ -1302,7 +1313,7 @@ impl FilterState {
         // a panic and the thread-local has been torn down, that's fine, just
         // ignore it ratehr than panicking.
         let _ = FILTERING.try_with(|filtering| {
-            filtering.pop_or_clear();
+            filtering.filter_maps.pop_or_clear();
 
             // TODO: is this needed?
             #[cfg(debug_assertions)]
@@ -1326,7 +1337,7 @@ impl FilterState {
     }
 
     pub(crate) fn filter_map(&self) -> FilterMap {
-        let map = self.enabled.get();
+        let map = self.filter_maps.current.get();
         #[cfg(debug_assertions)]
         {
             if self.counters.in_filter_pass.get() == 0 {
