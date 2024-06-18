@@ -1174,7 +1174,7 @@ impl FilterState {
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass == 0 {
-                debug_assert_eq!(self.enabled.get(), FilterMap::default());
+                debug_assert_eq!(self.enabled.get().disabled, FilterMap::default().disabled);
             }
             self.counters.in_filter_pass.set(in_current_pass + 1);
             debug_assert_eq!(
@@ -1228,7 +1228,10 @@ impl FilterState {
                 #[cfg(debug_assertions)]
                 {
                     if this.counters.in_filter_pass.get() == 0 {
-                        debug_assert_eq!(this.enabled.get(), FilterMap::default());
+                        debug_assert_eq!(
+                            this.enabled.get().disabled,
+                            FilterMap::default().disabled
+                        );
                     }
 
                     // Nothing enabled this event, we won't tick back down the
@@ -1270,7 +1273,7 @@ impl FilterState {
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass <= 1 {
-                debug_assert_eq!(self.enabled.get(), FilterMap::default());
+                debug_assert_eq!(self.enabled.get().disabled, FilterMap::default().disabled);
             }
             self.counters
                 .in_filter_pass
@@ -1285,9 +1288,8 @@ impl FilterState {
 
     /// Run a second filtering pass, e.g. for Layer::event_enabled.
     fn and(&self, filter: FilterId, f: impl FnOnce() -> bool) -> bool {
-        let map = self.enabled.get();
-        let enabled = map.is_enabled(filter) && f();
-        self.enabled.set(map.set(filter, enabled));
+        let enabled = self.enabled.get().is_enabled(filter) && f();
+        self.enabled.set(self.enabled.get().set(filter, enabled));
         enabled
     }
 
@@ -1328,7 +1330,7 @@ impl FilterState {
         #[cfg(debug_assertions)]
         {
             if self.counters.in_filter_pass.get() == 0 {
-                debug_assert_eq!(map, FilterMap::default());
+                debug_assert_eq!(map.disabled, FilterMap::default().disabled);
             }
         }
 
