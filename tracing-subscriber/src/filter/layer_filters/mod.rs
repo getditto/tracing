@@ -177,7 +177,7 @@ impl FilterMapStack {
     }
 
     /// Pop a filter map off of the stack of nested filter maps in
-    /// `self.nested`, replacing `self`. If there are no nested map, clear
+    /// `self.nested`, replacing `self`. If there are no nested maps, clear
     /// `self` by replacing it with fresh values à la [`Self::default()`].
     fn pop_or_clear(&self) {
         // Like in `push()`, we can't move `self`. Instead, let's just overwrite
