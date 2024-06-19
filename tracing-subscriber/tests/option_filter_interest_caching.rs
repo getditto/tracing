@@ -11,6 +11,7 @@ use tracing_subscriber::{filter, prelude::*, Layer};
 /// A `None` filter should always be interested in events, and it should not
 /// needlessly degrade the caching of other filters.
 #[test]
+#[ignore = "fails due to an intentional, necessary, performance regression from the layer filter re-entrancy fix"]
 fn none_interest_cache() {
     let (layer_none, handle_none) = layer::mock()
         .event(expect::event())

@@ -8,6 +8,7 @@ use tracing_mock::{expect, layer};
 use tracing_subscriber::{filter, prelude::*};
 
 #[test]
+#[ignore = "fails due to an intentional, necessary, performance regression from the layer filter re-entrancy fix"]
 fn multiple_layer_filter_interests_are_cached() {
     // This layer will return Interest::always for INFO and lower.
     let seen_info = Arc::new(Mutex::new(HashMap::new()));
