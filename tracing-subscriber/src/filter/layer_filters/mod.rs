@@ -133,7 +133,7 @@ pub(crate) struct FilterMap {
 ///     recording a span or event can be skipped entirely.
 #[derive(Debug)]
 pub(crate) struct FilterState {
-    enabled: Cell<FilterMap>,
+    filter_map: Cell<FilterMap>,
     // TODO(eliza): `Interest`s should _probably_ be `Copy`. The only reason
     // they're not is our Obsessive Commitment to Forwards-Compatibility. If
     // this changes in tracing-core`, we can make this a `Cell` rather than
@@ -1155,7 +1155,7 @@ impl fmt::Binary for FilterMap {
 impl FilterState {
     fn new() -> Self {
         Self {
-            enabled: Cell::new(FilterMap::default()),
+            filter_map: Cell::new(FilterMap::default()),
             interest: RefCell::new(None),
 
             #[cfg(debug_assertions)]
@@ -1168,7 +1168,10 @@ impl FilterState {
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass == 0 {
-                debug_assert_eq!(self.enabled.get().disabled, FilterMap::default().disabled);
+                debug_assert_eq!(
+                    self.filter_map.get().disabled,
+                    FilterMap::default().disabled
+                );
             }
             self.counters.in_filter_pass.set(in_current_pass + 1);
             debug_assert_eq!(
@@ -1178,7 +1181,8 @@ impl FilterState {
             )
         }
 
-        self.enabled.set(self.enabled.get().set(filter, enabled))
+        self.filter_map
+            .set(self.filter_map.get().set(filter, enabled))
     }
 
     fn add_interest(&self, interest: Interest) {
@@ -1209,12 +1213,12 @@ impl FilterState {
     pub(crate) fn event_enabled() -> bool {
         FILTERING
             .try_with(|this| {
-                let enabled = this.enabled.get().any_enabled();
+                let enabled = this.filter_map.get().any_enabled();
                 #[cfg(debug_assertions)]
                 {
                     if this.counters.in_filter_pass.get() == 0 {
                         debug_assert_eq!(
-                            this.enabled.get().disabled,
+                            this.filter_map.get().disabled,
                             FilterMap::default().disabled
                         );
                     }
@@ -1241,7 +1245,7 @@ impl FilterState {
         recalculate_enabled: impl FnOnce() -> bool,
         if_enabled: impl FnOnce(),
     ) {
-        let map = self.enabled.get();
+        let map = self.filter_map.get();
         let enabled = if map.has_seen(filter) {
             map.is_enabled(filter)
         } else {
@@ -1253,23 +1257,26 @@ impl FilterState {
             // callback.
             if_enabled();
 
-            self.enabled.get().clear_seen(filter)
+            self.filter_map.get().clear_seen(filter)
         } else {
             // Otherwise, if this filter _did_ disable the span or event
             // currently being processed, clear its bit from this thread's
             // `FilterState`. The bit has already been "consumed" by skipping
             // this callback, and we need to ensure that the `FilterMap` for
             // this thread is reset when the *next* `enabled` call occurs.
-            self.enabled.get().set(filter, true).clear_seen(filter)
+            self.filter_map.get().set(filter, true).clear_seen(filter)
         };
 
-        self.enabled.set(new_map);
+        self.filter_map.set(new_map);
 
         #[cfg(debug_assertions)]
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass <= 1 {
-                debug_assert_eq!(self.enabled.get().disabled, FilterMap::default().disabled);
+                debug_assert_eq!(
+                    self.filter_map.get().disabled,
+                    FilterMap::default().disabled
+                );
             }
             self.counters
                 .in_filter_pass
@@ -1289,7 +1296,7 @@ impl FilterState {
         recalculate_enabled: impl FnOnce() -> bool,
         new_enabled: impl FnOnce() -> bool,
     ) -> bool {
-        let map = self.enabled.get();
+        let map = self.filter_map.get();
         let old_enabled = if map.has_seen(filter) {
             map.is_enabled(filter)
         } else {
@@ -1297,7 +1304,8 @@ impl FilterState {
         };
 
         let enabled = old_enabled && new_enabled();
-        self.enabled.set(self.enabled.get().set(filter, enabled));
+        self.filter_map
+            .set(self.filter_map.get().set(filter, enabled));
         enabled
     }
 
@@ -1310,7 +1318,7 @@ impl FilterState {
         // a panic and the thread-local has been torn down, that's fine, just
         // ignore it ratehr than panicking.
         let _ = FILTERING.try_with(|filtering| {
-            filtering.enabled.set(FilterMap::default());
+            filtering.filter_map.set(FilterMap::default());
 
             #[cfg(debug_assertions)]
             filtering.counters.in_filter_pass.set(0);
@@ -1333,7 +1341,7 @@ impl FilterState {
     }
 
     pub(crate) fn filter_map(&self) -> FilterMap {
-        let map = self.enabled.get();
+        let map = self.filter_map.get();
         #[cfg(debug_assertions)]
         {
             if self.counters.in_filter_pass.get() == 0 {
