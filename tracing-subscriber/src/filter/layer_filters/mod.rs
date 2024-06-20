@@ -1120,11 +1120,6 @@ impl FilterMap {
     pub(crate) fn any_enabled(self) -> bool {
         self.disabled != std::u64::MAX
     }
-
-    #[inline]
-    pub(crate) fn any_seen(self) -> bool {
-        self.seen != 0
-    }
 }
 
 impl fmt::Debug for FilterMap {
