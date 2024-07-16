@@ -1,6 +1,9 @@
 //! Demonstrates displaying events' source code locations with the `fmt`
 //! subscriber.
 #![deny(rust_2018_idioms)]
+
+use tracing_subscriber::fmt::FmtTarget;
+
 #[path = "fmt/yak_shave.rs"]
 mod yak_shave;
 
@@ -13,7 +16,7 @@ fn main() {
         // display source code line numbers
         .with_line_number(true)
         // disable targets
-        .with_target(false)
+        .with_target(FmtTarget::Off)
         // sets this to be the default, global subscriber for this application.
         .init();
 

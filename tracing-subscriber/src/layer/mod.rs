@@ -223,6 +223,7 @@
 //! ```
 //! use tracing_subscriber::{
 //!     Layer,
+//!     fmt::FmtTarget,
 //!     registry::LookupSpan,
 //!     prelude::*,
 //! };
@@ -243,7 +244,7 @@
 //!     {
 //!         // Shared configuration regardless of where logs are output to.
 //!         let fmt = tracing_subscriber::fmt::layer()
-//!             .with_target(true)
+//!             .with_target(FmtTarget::Full)
 //!             .with_thread_names(true);
 //!
 //!         // Configure the writer based on the desired log target:
@@ -304,7 +305,7 @@
 //! be used. For example:
 //!
 //! ```
-//! use tracing_subscriber::{filter::LevelFilter, Layer, prelude::*};
+//! use tracing_subscriber::{filter::LevelFilter, fmt::FmtTarget, Layer, prelude::*};
 //! use std::fs::File;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! struct Config {
@@ -329,7 +330,7 @@
 //!     let file = File::create("myapp.log")?;
 //!     let layer = tracing_subscriber::fmt::layer()
 //!         .with_thread_names(true)
-//!         .with_target(true)
+//!         .with_target(FmtTarget::Full)
 //!         .json()
 //!         .with_writer(file)
 //!         // Box the layer as a type-erased trait object, so that it can
@@ -350,7 +351,7 @@
 //!
 //! if cfg.enable_stdout {
 //!     let layer = tracing_subscriber::fmt::layer()
-//!         .with_target(false)
+//!         .with_target(FmtTarget::Off)
 //!         .with_filter(LevelFilter::WARN)
 //!         // Box the layer as a type-erased trait object, so that it can
 //!         // be pushed to the `Vec`.

@@ -1,4 +1,7 @@
 #![deny(rust_2018_idioms)]
+
+use tracing_subscriber::fmt::FmtTarget;
+
 #[path = "fmt/yak_shave.rs"]
 mod yak_shave;
 
@@ -9,7 +12,7 @@ fn main() {
     let format = fmt::format()
         .compact() // use an abbreviated format for logging spans
         .with_level(false) // don't include levels in formatted output
-        .with_target(false); // don't include targets
+        .with_target(FmtTarget::Off); // don't include targets
 
     // Create a `fmt` subscriber that uses our custom event format, and set it
     // as the default.

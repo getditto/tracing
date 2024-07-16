@@ -706,6 +706,8 @@ fn create_writer(directory: &Path, filename: &str) -> Result<File, InitError> {
 
 #[cfg(test)]
 mod test {
+    use tracing_subscriber::fmt::FmtTarget;
+
     use super::*;
     use std::fs;
     use std::io::Write;
@@ -953,7 +955,7 @@ mod test {
         let default = tracing_subscriber::fmt()
             .without_time()
             .with_level(false)
-            .with_target(false)
+            .with_target(FmtTarget::Off)
             .with_max_level(tracing_subscriber::filter::LevelFilter::TRACE)
             .with_writer(appender)
             .finish()
@@ -1035,7 +1037,7 @@ mod test {
         let default = tracing_subscriber::fmt()
             .without_time()
             .with_level(false)
-            .with_target(false)
+            .with_target(FmtTarget::Off)
             .with_max_level(tracing_subscriber::filter::LevelFilter::TRACE)
             .with_writer(appender)
             .finish()

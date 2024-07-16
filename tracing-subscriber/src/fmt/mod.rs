@@ -106,12 +106,12 @@
 //! set specific formatting settings. For example:
 //!
 //! ```
-//! use tracing_subscriber::fmt;
+//! use tracing_subscriber::{fmt, fmt::FmtTarget};
 //!
 //! // Configure a custom event formatter
 //! let format = fmt::format()
 //!    .with_level(false) // don't include levels in formatted output
-//!    .with_target(false) // don't include targets
+//!    .with_target(FmtTarget::Off) // don't include targets
 //!    .with_thread_ids(true) // include the thread ID of the current thread
 //!    .with_thread_names(true) // include the name of the current thread
 //!    .compact(); // use the `Compact` formatting style.
@@ -166,11 +166,11 @@
 //! Composing an [`EnvFilter`] `Layer` and a [format `Layer`][super::fmt::Layer]:
 //!
 //! ```rust
-//! use tracing_subscriber::{fmt, EnvFilter};
+//! use tracing_subscriber::{fmt, fmt::FmtTarget, EnvFilter};
 //! use tracing_subscriber::prelude::*;
 //!
 //! let fmt_layer = fmt::layer()
-//!     .with_target(false);
+//!     .with_target(FmtTarget::Off);
 //! let filter_layer = EnvFilter::try_from_default_env()
 //!     .or_else(|_| EnvFilter::try_new("info"))
 //!     .unwrap();
@@ -212,7 +212,7 @@ use crate::{
 
 #[doc(inline)]
 pub use self::{
-    format::{format, FormatEvent, FormatFields},
+    format::{format, FmtTarget, FormatEvent, FormatFields},
     time::time,
     writer::{MakeWriter, TestWriter},
 };
@@ -269,10 +269,11 @@ pub struct SubscriberBuilder<
 /// Configuring the output format:
 ///
 /// ```rust
+/// use tracing_subscriber::fmt::FmtTarget;
 ///
 /// tracing_subscriber::fmt()
 ///     // Configure formatting settings.
-///     .with_target(false)
+///     .with_target(FmtTarget::Off)
 ///     .with_timer(tracing_subscriber::fmt::time::uptime())
 ///     .with_level(true)
 ///     // Set the subscriber as the default.
@@ -660,7 +661,7 @@ where
     /// Sets whether or not an event's target is displayed.
     pub fn with_target(
         self,
-        display_target: bool,
+        display_target: FmtTarget,
     ) -> SubscriberBuilder<N, format::Format<L, T>, F, W> {
         SubscriberBuilder {
             inner: self.inner.with_target(display_target),
