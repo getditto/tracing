@@ -173,6 +173,7 @@
     // Fail the docs build if any intra-docs links are broken
     deny(rustdoc::broken_intra_doc_links),
 )]
+#![feature(thread_id_value)]
 #![warn(
     missing_debug_implementations,
     missing_docs,

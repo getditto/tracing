@@ -32,6 +32,11 @@ use crate::{
     layer::{self, Context, Layer},
     registry,
 };
+use core::{
+    borrow::{Borrow, BorrowMut},
+    cell::RefMut,
+    panic::Location,
+};
 use std::{
     any::TypeId,
     cell::{Cell, RefCell},
@@ -160,6 +165,47 @@ enum FilterMachineState {
     Preparing,
     InPass(callsite::Identifier),
     Ending(callsite::Identifier, EndingReason),
+}
+
+impl fmt::Display for FilterMachineState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FilterMachineState::Preparing => {
+                write!(
+                    f,
+                    r#"{{ "state": "preparing", "reason": null, "file": null, "line": null }}"#
+                )
+            }
+            FilterMachineState::InPass(callsite) => write!(
+                f,
+                r#"{{ "state": "in_pass", "reason": null, "file": {file}, "line": {line} }} "#,
+                file = callsite
+                    .0
+                    .metadata()
+                    .file()
+                    .map_or_else(|| "null".to_owned(), |file| format!("\"{}\"", file)),
+                line = callsite
+                    .0
+                    .metadata()
+                    .line()
+                    .map_or_else(|| "null".to_owned(), |line| line.to_string()),
+            ),
+            FilterMachineState::Ending(callsite, reason) => write!(
+                f,
+                r#"{{ "state": "ending", "reason": "{reason:?}", "file": {file}, "line": {line} }} "#,
+                file = callsite
+                    .0
+                    .metadata()
+                    .file()
+                    .map_or_else(|| "null".to_owned(), |file| format!("\"{}\"", file)),
+                line = callsite
+                    .0
+                    .metadata()
+                    .line()
+                    .map_or_else(|| "null".to_owned(), |line| line.to_string()),
+            ),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1266,18 +1312,73 @@ impl FilterState {
         }
     }
 
-    fn push(&self) {
+    #[track_caller]
+    fn push(&self, to_callsite: &callsite::Identifier, scenario: &str) {
         let mut ancestors = self.ancestors.borrow_mut();
+
+        println!(
+            r#"{newline}{{ "action": "push", "thread_id": {thread_id}, "from_depth": {depth}, "scenario": "{scenario}", "file": {file}, "line": {line}, "level": "{level}", "location": "{location}" }}"#,
+            newline = "\n",
+            thread_id = std::thread::current().id().as_u64(),
+            depth = ancestors.len(),
+            file = to_callsite
+                .0
+                .metadata()
+                .file()
+                .map_or_else(|| "null".to_owned(), |file| format!("\"{}\"", file)),
+            line = to_callsite
+                .0
+                .metadata()
+                .line()
+                .map_or_else(|| "null".to_owned(), |line| line.to_string()),
+            level = to_callsite.0.metadata().level(),
+            location = Location::caller(),
+        );
 
         let frame = self.current.take();
         ancestors.push(frame);
     }
 
-    fn pop(&self) {
+    #[track_caller]
+    fn pop(&self, from_callsite: &callsite::Identifier, scenario: &str) {
         let mut ancestors = self.ancestors.borrow_mut();
         let frame = ancestors.pop().unwrap_or_default();
 
+        println!(
+            r#"{newline}{{ "action": "pop", "thread_id": {thread_id}, "to_depth": {depth}, "scenario": "{scenario}", "file": {file}, "line": {line}, "level": "{level}", "location": "{location}" }}"#,
+            newline = "\n",
+            thread_id = std::thread::current().id().as_u64(),
+            depth = ancestors.len(),
+            file = from_callsite
+                .0
+                .metadata()
+                .file()
+                .map_or_else(|| "null".to_owned(), |file| format!("\"{}\"", file)),
+            line = from_callsite
+                .0
+                .metadata()
+                .line()
+                .map_or_else(|| "null".to_owned(), |line| line.to_string()),
+            level = from_callsite.0.metadata().level(),
+            location = Location::caller(),
+        );
+
         self.current.put(frame);
+    }
+
+    #[track_caller]
+    fn set_machine_state(
+        state: &mut RefMut<'_, FilterMachineState>,
+        new_state: FilterMachineState,
+        scenario: &str,
+    ) {
+        println!(
+            r#"{newline}{{ "action": "set_state", "to_state": {new_state}, "thread_id": {thread_id}, "scenario": "{scenario}", "location": "{location}" }}"#,
+            newline = "\n",
+            thread_id = std::thread::current().id().as_u64(),
+            location = Location::caller(),
+        );
+        **state = new_state;
     }
 
     fn set(&self, callsite: callsite::Identifier, filter: FilterId, enabled: bool) {
@@ -1286,7 +1387,11 @@ impl FilterState {
             FilterMachineState::Preparing => {
                 // We're beginnning a filtering pass for the provided callsite. This is the first
                 // time we've seen set() called for this callsite, so set the machine state.
-                *machine_state = FilterMachineState::InPass(callsite);
+                Self::set_machine_state(
+                    &mut machine_state,
+                    FilterMachineState::InPass(callsite),
+                    "initialization state change (no push) in set()",
+                );
             }
             FilterMachineState::InPass(ref in_callsite) if *in_callsite == callsite => {
                 // We're not in a re-entrant call, keep the machine state the same and don't mess
@@ -1295,8 +1400,12 @@ impl FilterState {
             FilterMachineState::InPass(_) => {
                 // This is a re-entrant call, because it's for a different callsite than the one we
                 // were already processing.
-                self.push();
-                *machine_state = FilterMachineState::InPass(callsite);
+                self.push(&callsite, "non-recursive re-entrant set()");
+                Self::set_machine_state(
+                    &mut machine_state,
+                    FilterMachineState::InPass(callsite),
+                    "non-recursive re-entrant push performed from set()",
+                );
             }
             FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
                 // We were set to abandon the pass for a callsite, but we've just entered that
@@ -1304,15 +1413,27 @@ impl FilterState {
                 // of recursive code issuing the same event again, but since tracing_core assumes
                 // that callsites with equal identifiers also have equal metadata, let's pretend
                 // that we're just still processing the same event. Keep the filter state!
-                *machine_state = FilterMachineState::InPass(callsite);
+                Self::set_machine_state(
+                    &mut machine_state,
+                    FilterMachineState::InPass(callsite),
+                    "reusing state from deferred pop in set() (recursively re-entrant)",
+                );
             }
-            FilterMachineState::Ending(_, _) => {
+            FilterMachineState::Ending(ref old_callsite, reason) => {
                 // We're set to abandon the pass for a callsite that's not the same as the one we're
                 // now processing. This means we finished a re-entrant frame, and the next frame on
                 // the stack should be the suspended state for the callsite we've just begun
                 // processing again.
-                self.pop();
-                *machine_state = FilterMachineState::InPass(callsite);
+                self.pop(
+                    old_callsite,
+                    format!("deferred pop ({reason:?}) of non-recursive re-entrant frame on set()")
+                        .as_str(),
+                );
+                Self::set_machine_state(
+                    &mut machine_state,
+                    FilterMachineState::InPass(callsite),
+                    "processed deferred pop of non-recursive re-entrant frame in set())",
+                );
             }
         }
 
@@ -1394,15 +1515,23 @@ impl FilterState {
                     match *machine_state {
                         FilterMachineState::InPass(ref current_callsite) => {
                             assert_eq!(*current_callsite, callsite);
-                            *machine_state = FilterMachineState::Ending(
-                                callsite,
-                                EndingReason::AbandoningAllDisabled,
+                            Self::set_machine_state(
+                                &mut machine_state,
+                                FilterMachineState::Ending(
+                                    callsite,
+                                    EndingReason::AbandoningAllDisabled,
+                                ),
+                                "deferring pop from event_enabled_by_stage()",
                             );
                         }
                         _ => {
-                            *machine_state = FilterMachineState::Ending(
-                                callsite,
-                                EndingReason::AbandoningAllDisabled,
+                            Self::set_machine_state(
+                                &mut machine_state,
+                                FilterMachineState::Ending(
+                                    callsite,
+                                    EndingReason::AbandoningAllDisabled,
+                                ),
+                                "deferring pop from event_enabled_by_stage()",
                             );
                         }
                     }
@@ -1469,13 +1598,17 @@ impl FilterState {
             match *machine_state {
                 FilterMachineState::Preparing => {}
                 FilterMachineState::InPass(ref callsite) => {
+                    let callsite = callsite.clone();
                     // We were the last filter in the pass to clear our state, and there is at least
                     // one frame on the stack. This means we were processing a re-entrant
                     // event/span.
                     //
                     // Set the machine state to abandoning this callsite.
-                    *machine_state =
-                        FilterMachineState::Ending(callsite.clone(), EndingReason::CompletedPass);
+                    Self::set_machine_state(
+                        &mut machine_state,
+                        FilterMachineState::Ending(callsite, EndingReason::CompletedPass),
+                        "deferring a pop when pass completed from did_enable()",
+                    );
                 }
                 FilterMachineState::Ending(_, _) => {
                     // Don't do anything, we're already in an abandoning state.
@@ -1494,11 +1627,23 @@ impl FilterState {
         let mut machine_state = self.machine_state.borrow_mut();
         match *machine_state {
             FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
-                *machine_state = FilterMachineState::InPass(callsite);
+                Self::set_machine_state(
+                    &mut machine_state,
+                    FilterMachineState::InPass(callsite),
+                    "reusing state from deferred pop in and() (recursively re-entrant)",
+                );
             }
-            FilterMachineState::Ending(_, _) => {
-                self.pop();
-                *machine_state = FilterMachineState::InPass(callsite);
+            FilterMachineState::Ending(ref old_callsite, reason) => {
+                self.pop(
+                    old_callsite,
+                    format!("deferred pop ({reason:?}) of non-recursive re-entrant frame on and()")
+                        .as_str(),
+                );
+                Self::set_machine_state(
+                    &mut machine_state,
+                    FilterMachineState::InPass(callsite),
+                    "processed deferred pop of non-recursive re-entrant frame in and()",
+                );
             }
             _ => {}
         }
@@ -1553,7 +1698,12 @@ impl FilterState {
                     // Don't do anything, we're not re-entrantly starting a new interest pass.
                 }
                 FilterMachineState::Preparing => {
-                    *machine_state = FilterMachineState::InPass(callsite);
+                    filtering.push(&callsite, "initialization push on start_filter_pass()");
+                    Self::set_machine_state(
+                        &mut machine_state,
+                        FilterMachineState::InPass(callsite),
+                        "initialization push performed in start_filter_pass()",
+                    );
                 }
                 FilterMachineState::InPass(_) => {
                     // Since a filtering pass for a new callsite is starting while we're already in
@@ -1562,24 +1712,38 @@ impl FilterState {
                     // stack, and it'll be popped later in one of a few places (either when the
                     // filter pass is abandoned because a layer globally disabled the event, or when
                     // we complete the filter pass).
-                    filtering.push();
-                    *machine_state = FilterMachineState::InPass(callsite);
+                    filtering.push(&callsite, "non-recursive re-entrant start_filter_pass()");
+                    Self::set_machine_state(
+                        &mut machine_state,
+                        FilterMachineState::InPass(callsite),
+                        "non-recursive re-entrant push performed from start_filter_pass()",
+                    );
                 }
                 FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
                     *machine_state = FilterMachineState::InPass(callsite);
                 }
-                FilterMachineState::Ending(_, _) => {
+                FilterMachineState::Ending(ref old_callsite, reason) => {
                     // Process the deferred pop.
-                    filtering.pop();
+                    filtering.pop(
+                        old_callsite,
+                        format!("deferred pop ({reason:?}) on start_filter_pass()").as_str(),
+                    );
 
                     // Because `start_filter_pass()` is always called from a layer's `enabled()`,
                     // this combination of machine states always means that the event we're
                     // starting the filter pass for is a _new_ event, rather than the parent event
                     // we're returning to after having processed a re-entrant event inside it. So
                     // push again to get a fresh nested frame for the new event.
-                    filtering.push();
+                    filtering.push(
+                        &callsite,
+                        format!("post-deferred-pop ({reason:?}) push for non-recursive re-entrant start_filter_pass()").as_str(),
+                    );
 
-                    *machine_state = FilterMachineState::InPass(callsite);
+                    Self::set_machine_state(
+                        &mut machine_state,
+                        FilterMachineState::InPass(callsite),
+                        "consecutive non-recursive re-entrant push performed from start_filter_pass()",
+                    );
                 }
             }
         });
@@ -1599,9 +1763,13 @@ impl FilterState {
             let mut machine_state = filtering.machine_state.borrow_mut();
             match *machine_state {
                 FilterMachineState::Preparing => {
-                    *machine_state = FilterMachineState::Ending(
-                        callsite,
-                        EndingReason::AbandoningGloballyDisabled,
+                    Self::set_machine_state(
+                        &mut machine_state,
+                        FilterMachineState::Ending(
+                            callsite,
+                            EndingReason::AbandoningGloballyDisabled,
+                        ),
+                        "special-case preparing state abandoned (deferred pop) from abandon_filter_pass()",
                     );
                 }
                 FilterMachineState::InPass(ref current_callsite)
@@ -1616,9 +1784,13 @@ impl FilterState {
                     //    );
                     //}
 
-                    *machine_state = FilterMachineState::Ending(
-                        callsite,
-                        EndingReason::AbandoningGloballyDisabled,
+                    Self::set_machine_state(
+                        &mut machine_state,
+                        FilterMachineState::Ending(
+                            callsite,
+                            EndingReason::AbandoningGloballyDisabled,
+                        ),
+                        "in_pass state abandoned (deferred pop) from abandon_filter_pass()",
                     );
                 }
                 FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
