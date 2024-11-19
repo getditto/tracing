@@ -98,17 +98,19 @@ where
     }
 
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+        #[cfg(feature = "registry")]
+        filter::FilterState::start_filter_pass();
+
         if self.layer.enabled(metadata, self.ctx()) {
             // if the outer layer enables the callsite metadata, ask the subscriber.
             self.inner.enabled(metadata)
         } else {
             // otherwise, the callsite is disabled by the layer
 
-            // If per-layer filters are in use, and we are short-circuiting
-            // (rather than calling into the inner type), clear the current
-            // per-layer filter `enabled` state.
+            // If per-layer filters are in use, and we are short-circuiting (rather than calling
+            // into the inner type), clear the current per-layer filter `enabled` state.
             #[cfg(feature = "registry")]
-            filter::FilterState::clear_enabled();
+            filter::FilterState::abandon_filter_pass();
 
             false
         }
@@ -432,6 +434,9 @@ where
     }
 
     fn pick_interest(&self, outer: Interest, inner: impl FnOnce() -> Interest) -> Interest {
+        #[cfg(feature = "registry")]
+        filter::FilterState::start_interest_pass();
+
         if self.has_layer_filter {
             return inner();
         }
@@ -439,11 +444,11 @@ where
         // If the outer layer has disabled the callsite, return now so that
         // the inner layer/subscriber doesn't get its hopes up.
         if outer.is_never() {
-            // If per-layer filters are in use, and we are short-circuiting
-            // (rather than calling into the inner type), clear the current
-            // per-layer filter interest state.
+            // If per-layer filters are in use, and we are short-circuiting (rather than calling
+            // into the inner type), abandon the interest pass (clearing its per-layer filter
+            // interest state).
             #[cfg(feature = "registry")]
-            filter::FilterState::take_interest();
+            filter::FilterState::abandon_interest_pass();
 
             return outer;
         }
