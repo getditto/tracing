@@ -29,6 +29,12 @@
 //! enabled by the filter or not; it *still* would cause the outer one to escape
 //! the filter. There are tests for both cases.
 
+use tracing::{
+    field::{self, Visit},
+    Event, Metadata, Subscriber,
+};
+use tracing_subscriber::layer::{Context, Filter};
+
 use super::*;
 
 /// Test that a disabled span, created inside the fields or message of an event,
@@ -221,4 +227,67 @@ fn recursive_events() {
     recurse(2);
 
     handle.assert_finished();
+}
+
+#[test]
+fn recursive_inner_disabled_by_value() {
+    let (expect, handle) = layer::named("error")
+        .event(
+            expect::event()
+                .at_level(Level::TRACE)
+                .with_fields(expect::field("result").with_value(&format_args!("{}", 1))),
+        )
+        .only()
+        .run_with_handle();
+
+    let _subscriber = tracing_subscriber::registry()
+        .with(expect.with_filter(ResultValueFilter(1)))
+        .with(LevelFilter::TRACE)
+        .set_default();
+
+    fn recurse(n: u64) -> u64 {
+        if n == 0 {
+            return 0;
+        }
+
+        tracing::trace!(result = %format!("{}", recurse(n - 1)), "recursing");
+        n
+    }
+
+    recurse(2);
+
+    handle.assert_finished();
+}
+
+struct ResultValueFilter(u64);
+
+impl<S> Filter<S> for ResultValueFilter
+where
+    S: Subscriber,
+{
+    fn enabled(&self, _meta: &Metadata<'_>, _cx: &Context<'_, S>) -> bool {
+        true
+    }
+
+    fn event_enabled(&self, event: &Event<'_>, _cx: &Context<'_, S>) -> bool {
+        let mut visitor = ResultValueVisitor(self.0, false);
+        event.record(&mut visitor);
+        visitor.1
+    }
+}
+
+struct ResultValueVisitor(u64, bool);
+
+impl Visit for ResultValueVisitor {
+    fn record_u64(&mut self, field: &field::Field, value: u64) {
+        if field.name() == "result" && value == self.0 {
+            self.1 = true;
+        }
+    }
+
+    fn record_debug(&mut self, field: &field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "result" && format!("{:?}", value) == format!("{:?}", self.0) {
+            self.1 = true;
+        }
+    }
 }
