@@ -817,39 +817,6 @@ where
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
         let interest = self.filter.callsite_enabled(metadata);
 
-        // Per-layer filters use thread-local state to store whether they've
-        // disabled a given event/span from the `enabled()` call until the
-        // `event()`/`new_span()` call.
-        //
-        // Unfortunately, if we allow a per-layer filter to express an "always"
-        // interest in a callsite, and an event is emitted from that callsite
-        // *from within a re-entrant call* (e.g. the calculation of the value of
-        // an event's field itself causes an event to be emitted), there are
-        // situations where `enabled()` will not be called for the inner event.
-        // There is no straightforward way, in that situation, to keep the inner
-        // event from both:
-        //
-        // - Exhibiting incorrect behaviour due to misinterpretation of the
-        //   thread-local state (usually, not emitting the inner event even
-        //   though it should have been enabled)
-        // - Clobbering the thread-local state of the outer event (usually,
-        //   ending up emitting the outer event even though it should have been
-        //   disabled)
-        //
-        // The solution for the time being is therefore that we have to consider
-        // per-layer filters too broken to allow them to express an "always"
-        // interest, and we have to knock this down to "sometimes". The
-        // `enabled()` function will therefore always be called on events/spans
-        // that are subject to a per-layer filter; while the performance
-        // regression is regrettable, this will ensure that per-layer filters
-        // are always given the chance to push and pop their filter state to its
-        // stack, so they can correctly handle re-entrant calls.
-        let interest = if interest.is_always() {
-            Interest::sometimes()
-        } else {
-            interest
-        };
-
         // If the filter didn't disable the callsite, allow the inner layer to
         // register it — since `register_callsite` is also used for purposes
         // such as reserving/caching per-callsite data, we want the inner layer

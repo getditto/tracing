@@ -8,7 +8,6 @@ use tracing_mock::{layer::MockLayer, *};
 use tracing_subscriber::{filter, prelude::*};
 
 #[test]
-#[ignore = "fails due to an intentional, necessary, performance regression from the layer filter re-entrancy fix"]
 fn vec_layer_filter_interests_are_cached() {
     let mk_filtered = |level: Level, subscriber: MockLayer| {
         let seen = Arc::new(Mutex::new(HashMap::new()));
