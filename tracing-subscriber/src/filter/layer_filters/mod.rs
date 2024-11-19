@@ -1500,7 +1500,7 @@ impl FilterState {
     }
 
     /// End the interest pass and take the interest value out, if there is one.
-    pub(crate) fn take_interest(_callsite: callsite::Identifier) -> Option<Interest> {
+    pub(crate) fn take_interest() -> Option<Interest> {
         FILTERING
             .try_with(|filtering| {
                 //#[cfg(debug_assertions)]
