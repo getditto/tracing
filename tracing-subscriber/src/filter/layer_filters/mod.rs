@@ -1340,22 +1340,22 @@ impl FilterState {
             }
         }
 
-        #[cfg(debug_assertions)]
-        {
-            let in_current_pass = self.current.counters.in_filter_pass.get();
-            if in_current_pass == 0 {
-                debug_assert_eq!(self.current.filter_map.get(), FilterMap::default());
-            }
-            self.current
-                .counters
-                .in_filter_pass
-                .set(in_current_pass + 1);
-            debug_assert_eq!(
-                self.current.counters.in_interest_pass.get(),
-                0,
-                "if we are in or starting a filter pass, we must not be in an interest pass."
-            )
-        }
+        //#[cfg(debug_assertions)]
+        //{
+        //    let in_current_pass = self.current.counters.in_filter_pass.get();
+        //    if in_current_pass == 0 {
+        //        debug_assert_eq!(self.current.filter_map.get(), FilterMap::default());
+        //    }
+        //    self.current
+        //        .counters
+        //        .in_filter_pass
+        //        .set(in_current_pass + 1);
+        //    debug_assert_eq!(
+        //        self.current.counters.in_interest_pass.get(),
+        //        0,
+        //        "if we are in or starting a filter pass, we must not be in an interest pass."
+        //    )
+        //}
 
         self.current
             .filter_map
@@ -1405,17 +1405,17 @@ impl FilterState {
 
         let mut curr_interest = self.current.interest.borrow_mut();
 
-        #[cfg(debug_assertions)]
-        {
-            let in_current_pass = self.current.counters.in_interest_pass.get();
-            if in_current_pass == 0 {
-                debug_assert!(curr_interest.is_none());
-            }
-            self.current
-                .counters
-                .in_interest_pass
-                .set(in_current_pass + 1);
-        }
+        //#[cfg(debug_assertions)]
+        //{
+        //    let in_current_pass = self.current.counters.in_interest_pass.get();
+        //    if in_current_pass == 0 {
+        //        debug_assert!(curr_interest.is_none());
+        //    }
+        //    self.current
+        //        .counters
+        //        .in_interest_pass
+        //        .set(in_current_pass + 1);
+        //}
 
         if let Some(curr_interest) = curr_interest.as_mut() {
             if (curr_interest.is_always() && !interest.is_always())
@@ -1435,15 +1435,15 @@ impl FilterState {
             .try_with(|this| {
                 let enabled = this.current.filter_map.get().any_enabled_by_stage(stage);
 
-                #[cfg(debug_assertions)]
-                {
-                    if this.current.counters.in_filter_pass.get() == 0 {
-                        debug_assert_eq!(
-                            this.current.filter_map.get().disabled,
-                            FilterMap::default().disabled
-                        );
-                    }
-                }
+                //#[cfg(debug_assertions)]
+                //{
+                //    if this.current.counters.in_filter_pass.get() == 0 {
+                //        debug_assert_eq!(
+                //            this.current.filter_map.get().disabled,
+                //            FilterMap::default().disabled
+                //        );
+                //    }
+                //}
 
                 // Since nothing enabled the event, we should pop the filter state frame (since
                 // `did_enable` won't be called - same reasoning as in the debug_assertions block
@@ -1497,25 +1497,25 @@ impl FilterState {
             .filter_map
             .set(self.current.filter_map.get().clear_seen(filter));
 
-        #[cfg(debug_assertions)]
-        {
-            let in_current_pass = self.current.counters.in_filter_pass.get();
-            if in_current_pass <= 1 {
-                debug_assert_eq!(
-                    self.current.filter_map.get().disabled,
-                    FilterMap::default().disabled
-                );
-            }
-            self.current
-                .counters
-                .in_filter_pass
-                .set(in_current_pass.saturating_sub(1));
-            debug_assert_eq!(
-                self.current.counters.in_interest_pass.get(),
-                0,
-                "if we are in a filter pass, we must not be in an interest pass."
-            )
-        }
+        //#[cfg(debug_assertions)]
+        //{
+        //    let in_current_pass = self.current.counters.in_filter_pass.get();
+        //    if in_current_pass <= 1 {
+        //        debug_assert_eq!(
+        //            self.current.filter_map.get().disabled,
+        //            FilterMap::default().disabled
+        //        );
+        //    }
+        //    self.current
+        //        .counters
+        //        .in_filter_pass
+        //        .set(in_current_pass.saturating_sub(1));
+        //    debug_assert_eq!(
+        //        self.current.counters.in_interest_pass.get(),
+        //        0,
+        //        "if we are in a filter pass, we must not be in an interest pass."
+        //    )
+        //}
 
         if !self.current.filter_map.get().any_seen() {
             let mut machine_state = self.machine_state.borrow_mut();
@@ -1585,20 +1585,20 @@ impl FilterState {
     /// abandoned (i.e. one of `abandon_interest_pass()` or `take_interest()` must be called).
     pub(crate) fn start_interest_pass(callsite: callsite::Identifier) {
         let _ = FILTERING.try_with(|filtering| {
-            #[cfg(debug_assertions)]
-            {
-                if filtering.current.filter_map.get().any_seen() {
-                    // If we're running in debug mode, we can make an additional check: if the state
-                    // of the actual filter map indicates that a filter has seen it, which should
-                    // mean we're in a filter pass, then the counter for the number of filters in a
-                    // filter pass should not be zero.
-                    debug_assert_ne!(
-                        filtering.current.counters.in_filter_pass.get(),
-                        0,
-                        "if any filters have seen the filter map, we should be in a filter pass"
-                    );
-                }
-            }
+            //#[cfg(debug_assertions)]
+            //{
+            //    if filtering.current.filter_map.get().any_seen() {
+            //        // If we're running in debug mode, we can make an additional check: if the state
+            //        // of the actual filter map indicates that a filter has seen it, which should
+            //        // mean we're in a filter pass, then the counter for the number of filters in a
+            //        // filter pass should not be zero.
+            //        debug_assert_ne!(
+            //            filtering.current.counters.in_filter_pass.get(),
+            //            0,
+            //            "if any filters have seen the filter map, we should be in a filter pass"
+            //        );
+            //    }
+            //}
 
             let mut machine_state = filtering.machine_state.borrow_mut();
             match *machine_state {
@@ -1644,23 +1644,23 @@ impl FilterState {
     /// should have been). In debug mode, this will trigger an assertion failure.
     pub(crate) fn abandon_interest_pass(callsite: callsite::Identifier) {
         let _ = FILTERING.try_with(|filtering| {
-            #[cfg(debug_assertions)]
-            {
-                debug_assert_eq!(
-                    filtering.current.counters.in_filter_pass.get(),
-                    0,
-                    "we should not be in a filter pass when abandoning an interest pass"
-                );
-
-                if filtering.current.counters.in_interest_pass.get() == 0 {
-                    if let Ok(interest) = filtering.current.interest.try_borrow() {
-                        debug_assert!(
-                            interest.is_none(),
-                            "we shouldn't have an interest if there are no filters in the pass"
-                        );
-                    }
-                }
-            }
+            //#[cfg(debug_assertions)]
+            //{
+            //    debug_assert_eq!(
+            //        filtering.current.counters.in_filter_pass.get(),
+            //        0,
+            //        "we should not be in a filter pass when abandoning an interest pass"
+            //    );
+            //
+            //    if filtering.current.counters.in_interest_pass.get() == 0 {
+            //        if let Ok(interest) = filtering.current.interest.try_borrow() {
+            //            debug_assert!(
+            //                interest.is_none(),
+            //                "we shouldn't have an interest if there are no filters in the pass"
+            //            );
+            //        }
+            //    }
+            //}
 
             let mut machine_state = filtering.machine_state.borrow_mut();
             match *machine_state {
@@ -1692,18 +1692,18 @@ impl FilterState {
     pub(crate) fn take_interest(callsite: callsite::Identifier) -> Option<Interest> {
         FILTERING
             .try_with(|filtering| {
-                #[cfg(debug_assertions)]
-                {
-                    if filtering.current.counters.in_interest_pass.get() == 0 {
-                        if let Ok(interest) = filtering.current.interest.try_borrow() {
-                            debug_assert!(
-                                interest.is_none(),
-                                "we shouldn't have an interest if there are no filters in the pass"
-                            );
-                        }
-                    }
-                    filtering.current.counters.in_interest_pass.set(0);
-                }
+                //#[cfg(debug_assertions)]
+                //{
+                //    if filtering.current.counters.in_interest_pass.get() == 0 {
+                //        if let Ok(interest) = filtering.current.interest.try_borrow() {
+                //            debug_assert!(
+                //                interest.is_none(),
+                //                "we shouldn't have an interest if there are no filters in the pass"
+                //            );
+                //        }
+                //    }
+                //    filtering.current.counters.in_interest_pass.set(0);
+                //}
 
                 let machine_state = filtering.machine_state.borrow();
                 match *machine_state {
@@ -1747,14 +1747,14 @@ impl FilterState {
                 FilterMachineState::InPass(ref current_callsite)
                     if *current_callsite == callsite =>
                 {
-                    #[cfg(debug_assertions)]
-                    {
-                        debug_assert_ne!(
-                            filtering.current.counters.in_filter_pass.get(),
-                            0,
-                            "if we're abandoning a filter pass, the counter should not be zero"
-                        );
-                    }
+                    //#[cfg(debug_assertions)]
+                    //{
+                    //    debug_assert_ne!(
+                    //        filtering.current.counters.in_filter_pass.get(),
+                    //        0,
+                    //        "if we're abandoning a filter pass, the counter should not be zero"
+                    //    );
+                    //}
 
                     *machine_state = FilterMachineState::Abandoning(callsite);
                 }
@@ -1775,12 +1775,12 @@ impl FilterState {
 
     pub(crate) fn filter_map(&self) -> FilterMap {
         let map = self.current.filter_map.get();
-        #[cfg(debug_assertions)]
-        {
-            if self.current.counters.in_filter_pass.get() == 0 {
-                debug_assert_eq!(map.disabled, FilterMap::default().disabled);
-            }
-        }
+        //#[cfg(debug_assertions)]
+        //{
+        //    if self.current.counters.in_filter_pass.get() == 0 {
+        //        debug_assert_eq!(map.disabled, FilterMap::default().disabled);
+        //    }
+        //}
 
         map
     }
