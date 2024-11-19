@@ -1689,7 +1689,7 @@ struct FmtBitset(u64);
 impl fmt::Debug for FmtBitset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut set = f.debug_set();
-        for bit in 0..64 {
+        for bit in 0..64_i32 {
             // if the `bit`-th bit is set, add it to the debug set
             if self.0 & (1 << bit) != 0 {
                 set.entry(&bit);
