@@ -38,7 +38,7 @@ use std::{
     fmt,
     marker::PhantomData,
     ops::Deref,
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread_local,
 };
 use tracing_core::{
