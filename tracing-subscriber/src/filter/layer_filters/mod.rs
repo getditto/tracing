@@ -1499,69 +1499,6 @@ impl FilterState {
         enabled
     }
 
-    /// Inform the filter state that an interest pass is beginning on this thread.
-    ///
-    /// This will only have an effect in one specific situation: when an interest pass begins while
-    /// the filter state already contains data from a filtering pass. This will inform us that the
-    /// event or span we're calculating interest for is re-entrant (i.e. we're processing this
-    /// event/span in between when calculating the enabled state for and actually dispatching
-    /// another event).
-    ///
-    /// When this function has been called, the interest pass must always either be ended or
-    /// abandoned (i.e. one of `abandon_interest_pass()` or `take_interest()` must be called).
-    pub(crate) fn start_interest_pass(_callsite: callsite::Identifier) {
-        let _ = FILTERING.try_with(|_filtering| {
-            //#[cfg(debug_assertions)]
-            //{
-            //    if filtering.current.filter_map.get().any_seen() {
-            //        // If we're running in debug mode, we can make an additional check: if the state
-            //        // of the actual filter map indicates that a filter has seen it, which should
-            //        // mean we're in a filter pass, then the counter for the number of filters in a
-            //        // filter pass should not be zero.
-            //        debug_assert_ne!(
-            //            filtering.current.counters.in_filter_pass.get(),
-            //            0,
-            //            "if any filters have seen the filter map, we should be in a filter pass"
-            //        );
-            //    }
-            //}
-        });
-    }
-
-    /// Abandon the active interest pass, if there is one.
-    ///
-    /// The really important situation for this to be called in is when `start_interest_pass()` was
-    /// called earlier. The interest pass must be ended, either by abandoning it with this function
-    /// or completing it by calling `take_interest()`, because in a situation where we're processing
-    /// a re-entrant event or span, we must make sure to pop a filter state from the stack.
-    ///
-    /// It's completely fine for this function to be called if there is no interest pass active, but
-    /// it should not ever be called when there is a filter pass active. That would indicate that
-    /// we're processing a re-entrant event/span but the outer state wasn't correctly pushed when
-    /// the interest pass began (i.e. `start_interest_pass()` wasn't called in a place where it
-    /// should have been). In debug mode, this will trigger an assertion failure.
-    pub(crate) fn abandon_interest_pass(_callsite: callsite::Identifier) {
-        let _ = FILTERING.try_with(|_filtering| {
-            //#[cfg(debug_assertions)]
-            //{
-            //    debug_assert_eq!(
-            //        filtering.current.counters.in_filter_pass.get(),
-            //        0,
-            //        "we should not be in a filter pass when abandoning an interest pass"
-            //    );
-            //
-            //    if filtering.current.counters.in_interest_pass.get() == 0 {
-            //        if let Ok(interest) = filtering.current.interest.try_borrow() {
-            //            debug_assert!(
-            //                interest.is_none(),
-            //                "we shouldn't have an interest if there are no filters in the pass"
-            //            );
-            //        }
-            //    }
-            //}
-        });
-    }
-
     /// End the interest pass and take the interest value out, if there is one.
     pub(crate) fn take_interest(_callsite: callsite::Identifier) -> Option<Interest> {
         FILTERING

@@ -445,9 +445,6 @@ where
         outer: Interest,
         inner: impl FnOnce() -> Interest,
     ) -> Interest {
-        #[cfg(feature = "registry")]
-        filter::FilterState::start_interest_pass(callsite.clone());
-
         if self.has_layer_filter {
             return inner();
         }
@@ -459,7 +456,7 @@ where
             // into the inner type), abandon the interest pass (clearing its per-layer filter
             // interest state).
             #[cfg(feature = "registry")]
-            filter::FilterState::abandon_interest_pass(callsite);
+            let _ = filter::FilterState::take_interest();
 
             return outer;
         }
