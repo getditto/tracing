@@ -438,7 +438,7 @@ impl<'writer> Writer<'writer> {
     }
 
     // TODO(eliza): consider making this a public API?
-    pub(crate) fn with_ansi(self, is_ansi: bool) -> Self {
+    pub fn with_ansi(self, is_ansi: bool) -> Self {
         Self { is_ansi, ..self }
     }
 
