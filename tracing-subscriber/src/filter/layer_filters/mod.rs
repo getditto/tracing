@@ -1444,13 +1444,9 @@ impl FilterState {
             if_enabled();
         }
 
-        self.current.filter_map.set(
-            self.current
-                .filter_map
-                .get()
-                .set(filter, true)
-                .clear_seen(filter),
-        );
+        self.current
+            .filter_map
+            .set(self.current.filter_map.get().clear_seen(filter));
 
         #[cfg(debug_assertions)]
         {
