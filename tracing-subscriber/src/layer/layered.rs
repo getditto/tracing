@@ -102,8 +102,8 @@ where
     }
 
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        //#[cfg(feature = "registry")]
-        //filter::FilterState::start_filter_pass(metadata.callsite());
+        #[cfg(feature = "registry")]
+        filter::FilterState::start_filter_pass(metadata.callsite());
 
         if self.layer.enabled(metadata, self.ctx()) {
             // if the outer layer enables the callsite metadata, ask the subscriber.

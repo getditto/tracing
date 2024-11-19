@@ -1722,11 +1722,45 @@ impl FilterState {
             .ok()?
     }
 
-    //pub(crate) fn start_filter_pass(callsite: callsite::Identifier) {
-    //    let _ = FILTERING.try_with(|filtering| {
-    //        *filtering.machine_state.borrow_mut() = FilterMachineState::InPass(callsite);
-    //    });
-    //}
+    pub(crate) fn start_filter_pass(callsite: callsite::Identifier) {
+        let _ = FILTERING.try_with(|filtering| {
+            let mut machine_state = filtering.machine_state.borrow_mut();
+            match *machine_state {
+                FilterMachineState::InPass(ref old_callsite) if *old_callsite == callsite => {
+                    // Don't do anything, we're not re-entrantly starting a new interest pass.
+                }
+                FilterMachineState::Preparing => {
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+                FilterMachineState::InPass(_) => {
+                    // Since a filtering pass for a new callsite is starting while we're already in
+                    // a pass, we need to temporarily store the state for the event/span being
+                    // filtered, until the inner event/span is done processing. Push it to the
+                    // stack, and it'll be popped later in one of a few places (either when the
+                    // filter pass is abandoned because a layer globally disabled the event, or when
+                    // we complete the filter pass).
+                    filtering.push();
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+                FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+                FilterMachineState::Abandoning(_) => {
+                    // Process the deferred pop.
+                    filtering.pop();
+
+                    // Because `start_filter_pass()` is always called from a layer's `enabled()`,
+                    // this combination of machine states always means that the event we're
+                    // starting the filter pass for is a _new_ event, rather than the parent event
+                    // we're returning to after having processed a re-entrant event inside it. So
+                    // push again to get a fresh nested frame for the new event.
+                    filtering.push();
+
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+            }
+        });
+    }
 
     /// Abandons the active filter pass, if there is one, clearing the current in-progress filter
     /// state.
