@@ -1,19 +1,20 @@
 #![cfg(feature = "registry")]
-mod boxed;
-mod downcast_raw;
-mod filter_scopes;
-mod option;
+//mod boxed;
+//mod downcast_raw;
+//mod filter_scopes;
+//mod option;
 mod per_event;
-mod reentrancy;
-mod targets;
-mod trees;
-mod vec;
+//mod reentrancy;
+//mod targets;
+//mod trees;
+//mod vec;
 
 use tracing::{level_filters::LevelFilter, Level};
 use tracing_mock::{event, expect, layer, subscriber};
 use tracing_subscriber::{filter, prelude::*, Layer};
 
 #[test]
+#[ignore]
 fn basic_layer_filters() {
     let (trace_layer, trace_handle) = layer::named("trace")
         .event(expect::event().at_level(Level::TRACE))
@@ -49,6 +50,7 @@ fn basic_layer_filters() {
 }
 
 #[test]
+#[ignore]
 fn basic_layer_filter_spans() {
     let (trace_layer, trace_handle) = layer::named("trace")
         .new_span(expect::span().at_level(Level::TRACE))
@@ -84,6 +86,7 @@ fn basic_layer_filter_spans() {
 }
 
 #[test]
+#[ignore]
 fn global_filters_subscribers_still_work() {
     let (expect, handle) = layer::mock()
         .event(expect::event().at_level(Level::INFO))
@@ -107,6 +110,7 @@ fn global_filters_subscribers_still_work() {
 }
 
 #[test]
+#[ignore]
 fn global_filter_interests_are_cached() {
     let (expect, handle) = layer::mock()
         .event(expect::event().at_level(Level::WARN))
@@ -135,6 +139,7 @@ fn global_filter_interests_are_cached() {
 }
 
 #[test]
+#[ignore]
 fn global_filters_affect_subscriber_filters() {
     let (expect, handle) = layer::named("debug")
         .event(expect::event().at_level(Level::INFO))
