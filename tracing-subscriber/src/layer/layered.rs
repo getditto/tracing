@@ -94,11 +94,9 @@ where
     S: Subscriber,
 {
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        self.pick_interest(
-            metadata.callsite(),
-            self.layer.register_callsite(metadata),
-            || self.inner.register_callsite(metadata),
-        )
+        self.pick_interest(self.layer.register_callsite(metadata), || {
+            self.inner.register_callsite(metadata)
+        })
     }
 
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
@@ -261,11 +259,9 @@ where
     }
 
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        self.pick_interest(
-            metadata.callsite(),
-            self.layer.register_callsite(metadata),
-            || self.inner.register_callsite(metadata),
-        )
+        self.pick_interest(self.layer.register_callsite(metadata), || {
+            self.inner.register_callsite(metadata)
+        })
     }
 
     fn enabled(&self, metadata: &Metadata<'_>, ctx: Context<'_, S>) -> bool {
@@ -439,12 +435,7 @@ where
         }
     }
 
-    fn pick_interest(
-        &self,
-        callsite: callsite::Identifier,
-        outer: Interest,
-        inner: impl FnOnce() -> Interest,
-    ) -> Interest {
+    fn pick_interest(&self, outer: Interest, inner: impl FnOnce() -> Interest) -> Interest {
         if self.has_layer_filter {
             return inner();
         }

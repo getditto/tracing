@@ -218,10 +218,9 @@ thread_local! {
 }
 
 impl Subscriber for Registry {
-    fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
+    fn register_callsite(&self, _: &'static Metadata<'static>) -> Interest {
         if self.has_per_layer_filters() {
-            return FilterState::take_interest(metadata.callsite())
-                .unwrap_or_else(Interest::always);
+            return FilterState::take_interest().unwrap_or_else(Interest::always);
         }
 
         Interest::always()
