@@ -3,7 +3,7 @@ use thread_local::ThreadLocal;
 
 use super::stack::SpanStack;
 use crate::{
-    filter::{FilterId, FilterMap, FilterState},
+    filter::{FilterId, FilterMap, FilterState, Stage},
     registry::{
         extensions::{Extensions, ExtensionsInner, ExtensionsMut},
         LookupSpan, SpanData,
@@ -229,7 +229,7 @@ impl Subscriber for Registry {
 
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         if self.has_per_layer_filters() {
-            return FilterState::event_enabled(metadata.callsite());
+            return FilterState::event_enabled_by_stage(metadata.callsite(), Stage::Metadata);
         }
         true
     }
@@ -278,7 +278,7 @@ impl Subscriber for Registry {
 
     fn event_enabled(&self, event: &Event<'_>) -> bool {
         if self.has_per_layer_filters() {
-            return FilterState::event_enabled(event.metadata().callsite());
+            return FilterState::event_enabled_by_stage(event.metadata().callsite(), Stage::Event);
         }
         true
     }
@@ -440,7 +440,13 @@ impl<'a> SpanData<'a> for Data<'a> {
 
     #[inline]
     fn is_enabled_for(&self, filter: FilterId) -> bool {
-        self.inner.filter_map.is_enabled(filter)
+        self.inner
+            .filter_map
+            .is_enabled_at_stage(filter, Stage::Metadata)
+            && self
+                .inner
+                .filter_map
+                .is_enabled_at_stage(filter, Stage::Event)
     }
 }
 
