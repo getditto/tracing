@@ -101,7 +101,8 @@ pub struct FilterId(u64);
 /// [`Filter`]: crate::layer::Filter
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct FilterMap {
-    disabled: u64,
+    metadata_disabled: u64,
+    event_disabled: u64,
     seen: u64,
 }
 
@@ -1158,22 +1159,39 @@ impl<F, S> FilterExt<S> for F where F: layer::Filter<S> {}
 
 // === impl FilterMap ===
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Stage {
+    Metadata,
+    Event,
+}
+
 impl FilterMap {
-    pub(crate) fn set(self, FilterId(mask): FilterId, enabled: bool) -> Self {
+    pub(crate) fn set(self, FilterId(mask): FilterId, stage: Stage, enabled: bool) -> Self {
         if mask == std::u64::MAX {
             return self;
         }
 
-        if enabled {
-            Self {
-                disabled: self.disabled & (!mask),
+        fn enabler(map: u64, mask: u64) -> u64 {
+            map & (!mask)
+        }
+
+        fn disabler(map: u64, mask: u64) -> u64 {
+            map | mask
+        }
+
+        let modifier = if enabled { enabler } else { disabler };
+
+        match stage {
+            Stage::Metadata => Self {
+                metadata_disabled: modifier(self.metadata_disabled, mask),
+                event_disabled: self.event_disabled,
                 seen: self.seen | mask,
-            }
-        } else {
-            Self {
-                disabled: self.disabled | mask,
+            },
+            Stage::Event => Self {
+                metadata_disabled: self.metadata_disabled,
+                event_disabled: modifier(self.event_disabled, mask),
                 seen: self.seen | mask,
-            }
+            },
         }
     }
 
@@ -1183,14 +1201,19 @@ impl FilterMap {
         }
 
         Self {
-            disabled: self.disabled,
+            metadata_disabled: self.metadata_disabled,
+            event_disabled: self.event_disabled,
             seen: self.seen & (!mask),
         }
     }
 
+    // TODO: See if this can be const generic optimised
     #[inline]
-    pub(crate) fn is_enabled(self, FilterId(mask): FilterId) -> bool {
-        self.disabled & mask == 0
+    pub(crate) fn is_enabled_at_stage(self, FilterId(mask): FilterId, stage: Stage) -> bool {
+        match stage {
+            Stage::Metadata => self.metadata_disabled & mask == 0,
+            Stage::Event => self.event_disabled & mask == 0,
+        }
     }
 
     #[inline]
@@ -1199,8 +1222,11 @@ impl FilterMap {
     }
 
     #[inline]
-    pub(crate) fn any_enabled(self) -> bool {
-        self.disabled != std::u64::MAX
+    pub(crate) fn any_enabled_by_stage(self, stage: Stage) -> bool {
+        match stage {
+            Stage::Metadata => self.metadata_disabled != std::u64::MAX,
+            Stage::Event => (self.metadata_disabled | self.event_disabled) != std::u64::MAX,
+        }
     }
 
     #[inline]
@@ -1214,13 +1240,24 @@ impl fmt::Debug for FilterMap {
         let alt = f.alternate();
         let mut s = f.debug_struct("FilterMap");
         s.field(
-            "disabled_by",
-            &format_args!("{:?}", &FmtBitset(self.disabled)),
+            "metadata_disabled_by",
+            &format_args!("{:?}", &FmtBitset(self.metadata_disabled)),
+        );
+        s.field(
+            "event_disabled_by",
+            &format_args!("{:?}", &FmtBitset(self.event_disabled)),
         );
         s.field("seen_by", &format_args!("{:?}", &FmtBitset(self.seen)));
 
         if alt {
-            s.field("disabled_bits", &format_args!("{:b}", self.disabled));
+            s.field(
+                "metadata_disabled_bits",
+                &format_args!("{:b}", self.metadata_disabled),
+            );
+            s.field(
+                "event_disabled_bits",
+                &format_args!("{:b}", self.event_disabled),
+            );
             s.field("seen_bits", &format_args!("{:b}", self.seen));
         }
 
@@ -1231,7 +1268,11 @@ impl fmt::Debug for FilterMap {
 impl fmt::Binary for FilterMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FilterMap")
-            .field("disabled", &format_args!("{:b}", self.disabled))
+            .field(
+                "metadata_disabled",
+                &format_args!("{:b}", self.metadata_disabled),
+            )
+            .field("event_disabled", &format_args!("{:b}", self.event_disabled))
             .field("seen", &format_args!("{:b}", self.seen))
             .finish()
     }
@@ -1317,7 +1358,12 @@ impl FilterState {
 
         self.current
             .filter_map
-            .set(self.current.filter_map.get().set(filter, enabled))
+            .set(
+                self.current
+                    .filter_map
+                    .get()
+                    .set(filter, Stage::Metadata, enabled),
+            )
     }
 
     fn add_interest(&self, callsite: callsite::Identifier, interest: Interest) {
@@ -1383,10 +1429,10 @@ impl FilterState {
         }
     }
 
-    pub(crate) fn event_enabled(callsite: callsite::Identifier) -> bool {
+    pub(crate) fn event_enabled_by_stage(callsite: callsite::Identifier, stage: Stage) -> bool {
         FILTERING
             .try_with(|this| {
-                let enabled = this.current.filter_map.get().any_enabled();
+                let enabled = this.current.filter_map.get().any_enabled_by_stage(stage);
 
                 #[cfg(debug_assertions)]
                 {
@@ -1438,7 +1484,9 @@ impl FilterState {
 
         let map = self.current.filter_map.get();
 
-        if map.is_enabled(filter) {
+        if map.is_enabled_at_stage(filter, Stage::Metadata)
+            && map.is_enabled_at_stage(filter, Stage::Event)
+        {
             // If the filter didn't disable the current span/event, run the
             // callback.
             if_enabled();
@@ -1511,10 +1559,15 @@ impl FilterState {
 
         let map = self.current.filter_map.get();
 
-        let enabled = map.is_enabled(filter) && new_enabled();
+        let enabled = map.is_enabled_at_stage(filter, Stage::Metadata) && new_enabled();
         self.current
             .filter_map
-            .set(self.current.filter_map.get().set(filter, enabled));
+            .set(
+                self.current
+                    .filter_map
+                    .get()
+                    .set(filter, Stage::Event, enabled),
+            );
 
         enabled
     }
