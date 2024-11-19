@@ -159,7 +159,20 @@ pub(crate) struct FilterState {
 enum FilterMachineState {
     Preparing,
     InPass(callsite::Identifier),
-    Abandoning(callsite::Identifier),
+    Ending(callsite::Identifier, EndingReason),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum EndingReason {
+    /// The filter pass was abandoned because all per-layer filters disabled the event.
+    AbandoningAllDisabled,
+
+    /// The filter pass was abandoned because a `Layered` subscriber globally disabled the event.
+    AbandoningGloballyDisabled,
+
+    /// The filter pass was ended because all layers completely finished processing its enabled
+    /// state in `did_enable()`.
+    CompletedPass,
 }
 
 #[derive(Debug)]
@@ -1285,7 +1298,7 @@ impl FilterState {
                 self.push();
                 *machine_state = FilterMachineState::InPass(callsite);
             }
-            FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+            FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
                 // We were set to abandon the pass for a callsite, but we've just entered that
                 // callsite again. This basically means we're in a re-entrant call that's the result
                 // of recursive code issuing the same event again, but since tracing_core assumes
@@ -1293,7 +1306,7 @@ impl FilterState {
                 // that we're just still processing the same event. Keep the filter state!
                 *machine_state = FilterMachineState::InPass(callsite);
             }
-            FilterMachineState::Abandoning(_) => {
+            FilterMachineState::Ending(_, _) => {
                 // We're set to abandon the pass for a callsite that's not the same as the one we're
                 // now processing. This means we finished a re-entrant frame, and the next frame on
                 // the stack should be the suspended state for the callsite we've just begun
@@ -1381,10 +1394,16 @@ impl FilterState {
                     match *machine_state {
                         FilterMachineState::InPass(ref current_callsite) => {
                             assert_eq!(*current_callsite, callsite);
-                            *machine_state = FilterMachineState::Abandoning(callsite);
+                            *machine_state = FilterMachineState::Ending(
+                                callsite,
+                                EndingReason::AbandoningAllDisabled,
+                            );
                         }
                         _ => {
-                            *machine_state = FilterMachineState::Abandoning(callsite);
+                            *machine_state = FilterMachineState::Ending(
+                                callsite,
+                                EndingReason::AbandoningAllDisabled,
+                            );
                         }
                     }
                 }
@@ -1455,9 +1474,10 @@ impl FilterState {
                     // event/span.
                     //
                     // Set the machine state to abandoning this callsite.
-                    *machine_state = FilterMachineState::Abandoning(callsite.clone());
+                    *machine_state =
+                        FilterMachineState::Ending(callsite.clone(), EndingReason::CompletedPass);
                 }
-                FilterMachineState::Abandoning(_) => {
+                FilterMachineState::Ending(_, _) => {
                     // Don't do anything, we're already in an abandoning state.
                 }
             }
@@ -1473,10 +1493,10 @@ impl FilterState {
     ) -> bool {
         let mut machine_state = self.machine_state.borrow_mut();
         match *machine_state {
-            FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+            FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
                 *machine_state = FilterMachineState::InPass(callsite);
             }
-            FilterMachineState::Abandoning(_) => {
+            FilterMachineState::Ending(_, _) => {
                 self.pop();
                 *machine_state = FilterMachineState::InPass(callsite);
             }
@@ -1545,10 +1565,10 @@ impl FilterState {
                     filtering.push();
                     *machine_state = FilterMachineState::InPass(callsite);
                 }
-                FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
                     *machine_state = FilterMachineState::InPass(callsite);
                 }
-                FilterMachineState::Abandoning(_) => {
+                FilterMachineState::Ending(_, _) => {
                     // Process the deferred pop.
                     filtering.pop();
 
@@ -1579,7 +1599,10 @@ impl FilterState {
             let mut machine_state = filtering.machine_state.borrow_mut();
             match *machine_state {
                 FilterMachineState::Preparing => {
-                    *machine_state = FilterMachineState::Abandoning(callsite);
+                    *machine_state = FilterMachineState::Ending(
+                        callsite,
+                        EndingReason::AbandoningGloballyDisabled,
+                    );
                 }
                 FilterMachineState::InPass(ref current_callsite)
                     if *current_callsite == callsite =>
@@ -1593,14 +1616,17 @@ impl FilterState {
                     //    );
                     //}
 
-                    *machine_state = FilterMachineState::Abandoning(callsite);
+                    *machine_state = FilterMachineState::Ending(
+                        callsite,
+                        EndingReason::AbandoningGloballyDisabled,
+                    );
                 }
-                FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                FilterMachineState::Ending(ref ab_callsite, _) if *ab_callsite == callsite => {
                     // Do nothing, we're already abandoning the pass so any actions here would be
                     // duplicates.
                 }
 
-                FilterMachineState::InPass(_) | FilterMachineState::Abandoning(_) => {
+                FilterMachineState::InPass(_) | FilterMachineState::Ending(_, _) => {
                     // If we're either processing or abandoning a different callsite, this call to
                     // abandon this callsite is an extreme short-circuit - we never even heard about
                     // the callsite we're being asked to abandon until this point. Leave everything
