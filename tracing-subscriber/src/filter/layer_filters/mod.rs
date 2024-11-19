@@ -907,6 +907,7 @@ where
     fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, cx: Context<'_, S>) {
         let cx = cx.with_filter(self.id());
         self.did_enable(|| {
+            self.filter.on_new_span(attrs, id, cx.clone());
             self.layer.on_new_span(attrs, id, cx);
         })
     }
