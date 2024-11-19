@@ -1752,8 +1752,10 @@ pub(super) mod test {
 
     pub(crate) struct MockTime;
     impl FormatTime for MockTime {
-        fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
-            write!(w, "fake time")
+        fn format_time(&self, w: &mut Writer<'_>) -> Result<usize, fmt::Error> {
+            let time = "fake time";
+            write!(w, "{}", time)?;
+            Ok(time.len())
         }
     }
 
