@@ -43,7 +43,7 @@ pub struct Layered<L, I, S = I> {
     /// Does `self.layer` have per-layer filters?
     ///
     /// This will be true if:
-    /// - `self.inner` is a `Filtered`.
+    /// - `self.inner` is a `Filtered`, or
     /// - `self.inner` is a tree of `Layered`s where _all_ arms of those
     ///   `Layered`s have per-layer filters.
     ///
