@@ -152,7 +152,7 @@ pub(crate) struct FilterState {
 enum FilterMachineState {
     Preparing,
     InPass(callsite::Identifier),
-    Abandoning,
+    Abandoning(callsite::Identifier),
 }
 
 #[derive(Debug)]
@@ -865,7 +865,7 @@ where
 
         // Add our `Interest` to the current sum of per-layer filter `Interest`s
         // for this callsite.
-        FILTERING.with(|filtering| filtering.add_interest(interest));
+        FILTERING.with(|filtering| filtering.add_interest(metadata.callsite(), interest));
 
         // don't short circuit! if the stack consists entirely of `Layer`s with
         // per-layer filters, the `Registry` will return the actual `Interest`
@@ -932,8 +932,11 @@ where
 
     fn event_enabled(&self, event: &Event<'_>, cx: Context<'_, S>) -> bool {
         let cx = cx.with_filter(self.id());
-        let enabled = FILTERING
-            .with(|filtering| filtering.and(self.id(), || self.filter.event_enabled(event, &cx)));
+        let enabled = FILTERING.with(|filtering| {
+            filtering.and(event.metadata().callsite(), self.id(), || {
+                self.filter.event_enabled(event, &cx)
+            })
+        });
 
         if enabled {
             // If the filter enabled this event, ask the wrapped subscriber if
@@ -1267,7 +1270,7 @@ impl FilterState {
                 // time we've seen set() called for this callsite, so set the machine state.
                 *machine_state = FilterMachineState::InPass(callsite);
             }
-            FilterMachineState::InPass(ref old_callsite) if *old_callsite == callsite => {
+            FilterMachineState::InPass(ref in_callsite) if *in_callsite == callsite => {
                 // We're not in a re-entrant call, keep the machine state the same and don't mess
                 // with any frames.
             }
@@ -1277,14 +1280,20 @@ impl FilterState {
                 self.push();
                 *machine_state = FilterMachineState::InPass(callsite);
             }
-            FilterMachineState::Abandoning => {
-                // We've encountered a re-entrant call while we were abandoning another pass. That
-                // just means that we hit the start of this new re-entrant call right after having
-                // backed out of a previous one.
-                //
-                // Push a frame so we can handle the re-entrancy, and set the state to InPass
-                // (because we're about to start processing it).
-                self.push();
+            FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                // We were set to abandon the pass for a callsite, but we've just entered that
+                // callsite again. This basically means we're in a re-entrant call that's the result
+                // of recursive code issuing the same event again, but since tracing_core assumes
+                // that callsites with equal identifiers also have equal metadata, let's pretend
+                // that we're just still processing the same event. Keep the filter state!
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            FilterMachineState::Abandoning(_) => {
+                // We're set to abandon the pass for a callsite that's not the same as the one we're
+                // now processing. This means we finished a re-entrant frame, and the next frame on
+                // the stack should be the suspended state for the callsite we've just begun
+                // processing again.
+                self.pop();
                 *machine_state = FilterMachineState::InPass(callsite);
             }
         }
@@ -1311,7 +1320,42 @@ impl FilterState {
             .set(self.current.filter_map.get().set(filter, enabled))
     }
 
-    fn add_interest(&self, interest: Interest) {
+    fn add_interest(&self, callsite: callsite::Identifier, interest: Interest) {
+        let mut machine_state = self.machine_state.borrow_mut();
+        match *machine_state {
+            FilterMachineState::Preparing => {
+                // We're beginnning an interest pass for the provided callsite. This is the first
+                // time we've seen add_interest() called for this callsite, so set the machine state.
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            FilterMachineState::InPass(ref in_callsite) if *in_callsite == callsite => {
+                // We're not in a re-entrant call, keep the machine state the same and don't mess
+                // with any frames.
+            }
+            FilterMachineState::InPass(_) => {
+                // This is a re-entrant call, because it's for a different callsite than the one we
+                // were already processing.
+                self.push();
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                // We were set to abandon the pass for a callsite, but we've just entered that
+                // callsite again. This basically means we're in a re-entrant call that's the result
+                // of recursive code issuing the same event again, but since tracing_core assumes
+                // that callsites with equal identifiers also have equal metadata, let's pretend
+                // that we're just still processing the same event. Keep the filter state!
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            FilterMachineState::Abandoning(_) => {
+                // We're set to abandon the pass for a callsite that's not the same as the one we're
+                // now processing. This means we finished a re-entrant frame, and the next frame on
+                // the stack should be the suspended state for the callsite we've just begun
+                // processing again.
+                self.pop();
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+        }
+
         let mut curr_interest = self.current.interest.borrow_mut();
 
         #[cfg(debug_assertions)]
@@ -1360,24 +1404,12 @@ impl FilterState {
                 if !enabled {
                     let mut machine_state = this.machine_state.borrow_mut();
                     match *machine_state {
-                        FilterMachineState::Preparing => {
-                            // This is the first time during this pass that we've seen a call to
-                            // anything that would pop the active frame. We should therefore pop the
-                            // frame and set the machine state to Abandoning.
-                            this.pop();
-                            *machine_state = FilterMachineState::Abandoning;
-                        }
                         FilterMachineState::InPass(ref current_callsite) => {
                             assert_eq!(*current_callsite, callsite);
-
-                            // This is the first time during this pass that we've seen a call to
-                            // anything that would pop the active frame. We should therefore pop the
-                            // frame and set the machine state to Abandoning.
-                            this.pop();
-                            *machine_state = FilterMachineState::Abandoning;
+                            *machine_state = FilterMachineState::Abandoning(callsite);
                         }
-                        FilterMachineState::Abandoning => {
-                            // We're already abandoning the current pass, so don't pop again.
+                        _ => {
+                            *machine_state = FilterMachineState::Abandoning(callsite);
                         }
                     }
                 }
@@ -1393,13 +1425,16 @@ impl FilterState {
     /// This is used to implement the `on_event` and `new_span` methods for
     /// `Filtered`.
     fn did_enable(&self, filter: FilterId, if_enabled: impl FnOnce()) {
-        let machine_state = self.machine_state.borrow();
-        match *machine_state {
-            FilterMachineState::Preparing => {}
-            FilterMachineState::InPass(_) => {}
-            FilterMachineState::Abandoning => {}
-        }
-        drop(machine_state);
+        //let mut machine_state = self.machine_state.borrow_mut();
+        //match *machine_state {
+        //    FilterMachineState::Preparing => {}
+        //    FilterMachineState::InPass(_) => {}
+        //    FilterMachineState::Abandoning(ref callsite) => {
+        //        self.pop();
+        //        *machine_state = FilterMachineState::InPass(callsite.clone());
+        //    }
+        //}
+        //drop(machine_state);
 
         let map = self.current.filter_map.get();
 
@@ -1440,17 +1475,18 @@ impl FilterState {
         if !self.current.filter_map.get().any_seen() {
             let mut machine_state = self.machine_state.borrow_mut();
             match *machine_state {
-                FilterMachineState::Preparing | FilterMachineState::InPass(_) => {
+                FilterMachineState::Preparing => {
+                    todo!()
+                }
+                FilterMachineState::InPass(ref callsite) => {
                     // We were the last filter in the pass to clear our state, and there is at least
                     // one frame on the stack. This means we were processing a re-entrant
-                    // event/span, so pop the frame to restore the state for the parent event/span.
-                    self.pop();
-
-                    // Set the machine state to Abandoning so that other calls don't try to pop this
-                    // frame a second time.
-                    *machine_state = FilterMachineState::Abandoning;
+                    // event/span.
+                    //
+                    // Set the machine state to abandoning this callsite.
+                    *machine_state = FilterMachineState::Abandoning(callsite.clone());
                 }
-                FilterMachineState::Abandoning => {
+                FilterMachineState::Abandoning(_) => {
                     // Don't do anything, we're already in an abandoning state.
                 }
             }
@@ -1458,22 +1494,26 @@ impl FilterState {
     }
 
     /// Run a second filtering pass, e.g. for Layer::event_enabled.
-    fn and(&self, filter: FilterId, new_enabled: impl FnOnce() -> bool) -> bool {
-        let machine_state = self.machine_state.borrow();
+    fn and(
+        &self,
+        callsite: callsite::Identifier,
+        filter: FilterId,
+        new_enabled: impl FnOnce() -> bool,
+    ) -> bool {
+        let mut machine_state = self.machine_state.borrow_mut();
         match *machine_state {
-            FilterMachineState::Preparing => {}
-            FilterMachineState::InPass(_) => {}
-            FilterMachineState::Abandoning => {}
+            FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            FilterMachineState::Abandoning(_) => {
+                self.pop();
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            _ => {}
         }
         drop(machine_state);
 
         let map = self.current.filter_map.get();
-
-        // Unlike in `did_enable()` above, we *expect* that we've already seen the filter state with
-        // this filter. If we haven't, panic for now to root out any cases where this happens.
-        if !map.has_seen(filter) {
-            panic!("and() should only be called on a second filtering pass");
-        }
 
         let enabled = map.is_enabled(filter) && new_enabled();
         self.current
@@ -1495,11 +1535,9 @@ impl FilterState {
     /// abandoned (i.e. one of `abandon_interest_pass()` or `take_interest()` must be called).
     pub(crate) fn start_interest_pass(callsite: callsite::Identifier) {
         let _ = FILTERING.try_with(|filtering| {
-            // If any filters have seen the filter map, that means they were given the opportunity
-            // to determine the enabled state for an event, so we're in a filtering pass.
-            if filtering.current.filter_map.get().any_seen() {
-                #[cfg(debug_assertions)]
-                {
+            #[cfg(debug_assertions)]
+            {
+                if filtering.current.filter_map.get().any_seen() {
                     // If we're running in debug mode, we can make an additional check: if the state
                     // of the actual filter map indicates that a filter has seen it, which should
                     // mean we're in a filter pass, then the counter for the number of filters in a
@@ -1510,35 +1548,34 @@ impl FilterState {
                         "if any filters have seen the filter map, we should be in a filter pass"
                     );
                 }
+            }
 
-                let mut machine_state = filtering.machine_state.borrow_mut();
-                match *machine_state {
-                    FilterMachineState::Preparing => {
-                        // We've been informed that a pass is starting, but we're already preparing
-                        // a new pass (i.e. push() was already called, and we haven't been asked to
-                        // set any values in the frame since that happened).
-                        //
-                        // So don't push a frame, it would be a duplicate push.
-                    }
-                    FilterMachineState::InPass(ref old_callsite) if *old_callsite == callsite => {
-                        // Don't do anything, we're not re-entrantly starting a new interest pass.
-                    }
-                    FilterMachineState::InPass(_) => {
-                        // Since an interest pass for a new callsite is starting while we're already
-                        // in a pass, we need to temporarily store the state for the event/span
-                        // being filtered, until the inner event/span is done processing. Push it to
-                        // the stack, and it'll be popped later in one of a few places (either when
-                        // the interest pass is abandoned because the interest was determined to be
-                        // Never, or when we proceed to a filter pass and either complete or abandon
-                        // the filter pass).
-                        filtering.push();
-
-                        *machine_state = FilterMachineState::InPass(callsite);
-                    }
-                    FilterMachineState::Abandoning => todo!(),
+            let mut machine_state = filtering.machine_state.borrow_mut();
+            match *machine_state {
+                FilterMachineState::InPass(ref old_callsite) if *old_callsite == callsite => {
+                    // Don't do anything, we're not re-entrantly starting a new interest pass.
                 }
-
-                // We're now correctly set up to process the inner (re-entrant) event/span.
+                FilterMachineState::Preparing => {
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+                FilterMachineState::InPass(_) => {
+                    // Since an interest pass for a new callsite is starting while we're already
+                    // in a pass, we need to temporarily store the state for the event/span
+                    // being filtered, until the inner event/span is done processing. Push it to
+                    // the stack, and it'll be popped later in one of a few places (either when
+                    // the interest pass is abandoned because the interest was determined to be
+                    // Never, or when we proceed to a filter pass and either complete or abandon
+                    // the filter pass).
+                    filtering.push();
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+                FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
+                FilterMachineState::Abandoning(_) => {
+                    filtering.pop();
+                    *machine_state = FilterMachineState::InPass(callsite);
+                }
             }
         });
     }
@@ -1577,22 +1614,32 @@ impl FilterState {
 
             let mut machine_state = filtering.machine_state.borrow_mut();
             match *machine_state {
+                FilterMachineState::Preparing => {
+                    *machine_state = FilterMachineState::Abandoning(callsite);
+                }
+
                 FilterMachineState::InPass(ref current_callsite)
                     if *current_callsite == callsite =>
                 {
-                    filtering.pop();
-                    *machine_state = FilterMachineState::Abandoning;
+                    *machine_state = FilterMachineState::Abandoning(callsite);
+                }
+                FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
+                    // We're already abandoning this callsite, this is a duplicate call. Don't do
+                    // anything.
                 }
 
-                _ => {
-                    // Do nothing, this isn't the callsite we're abandoning the pass for.
+                FilterMachineState::InPass(_) | FilterMachineState::Abandoning(_) => {
+                    // If we're either processing or abandoning a different callsite, this call to
+                    // abandon this callsite is an extreme short-circuit - we never even heard about
+                    // the callsite we're being asked to abandon until this point. Leave everything
+                    // alone.
                 }
             }
         });
     }
 
     /// End the interest pass and take the interest value out, if there is one.
-    pub(crate) fn take_interest() -> Option<Interest> {
+    pub(crate) fn take_interest(callsite: callsite::Identifier) -> Option<Interest> {
         FILTERING
             .try_with(|filtering| {
                 #[cfg(debug_assertions)]
@@ -1608,14 +1655,19 @@ impl FilterState {
                     filtering.current.counters.in_interest_pass.set(0);
                 }
 
-                let interest = filtering
-                    .current
-                    .interest
-                    .try_borrow_mut()
-                    .ok()
-                    .and_then(|mut interest| interest.take());
-
-                interest
+                let machine_state = filtering.machine_state.borrow();
+                match *machine_state {
+                    FilterMachineState::Preparing => None,
+                    FilterMachineState::InPass(ref in_callsite) if *in_callsite == callsite => {
+                        filtering
+                            .current
+                            .interest
+                            .try_borrow_mut()
+                            .ok()
+                            .and_then(|mut interest| interest.take())
+                    }
+                    FilterMachineState::InPass(_) | FilterMachineState::Abandoning(_) => None,
+                }
             })
             .ok()?
     }
@@ -1640,7 +1692,7 @@ impl FilterState {
             let mut machine_state = filtering.machine_state.borrow_mut();
             match *machine_state {
                 FilterMachineState::Preparing => {
-                    *machine_state = FilterMachineState::Abandoning;
+                    *machine_state = FilterMachineState::Abandoning(callsite);
                 }
                 FilterMachineState::InPass(ref current_callsite)
                     if *current_callsite == callsite =>
@@ -1654,16 +1706,18 @@ impl FilterState {
                         );
                     }
 
-                    filtering.pop();
-                    *machine_state = FilterMachineState::Abandoning;
+                    *machine_state = FilterMachineState::Abandoning(callsite);
                 }
-                FilterMachineState::InPass(_) => {
-                    // Don't abandon anything, this isn't the callsite we're supposed to abandon
-                    // for.
-                }
-                FilterMachineState::Abandoning => {
+                FilterMachineState::Abandoning(ref ab_callsite) if *ab_callsite == callsite => {
                     // Do nothing, we're already abandoning the pass so any actions here would be
                     // duplicates.
+                }
+
+                FilterMachineState::InPass(_) | FilterMachineState::Abandoning(_) => {
+                    // If we're either processing or abandoning a different callsite, this call to
+                    // abandon this callsite is an extreme short-circuit - we never even heard about
+                    // the callsite we're being asked to abandon until this point. Leave everything
+                    // alone.
                 }
             }
         });
