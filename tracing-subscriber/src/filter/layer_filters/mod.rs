@@ -152,7 +152,7 @@ pub(crate) struct FilterState {
     /// `Filtered::enabled` and `Filtered::did_enable` calls that bookend the processing of another
     /// event, then the new event is considered re-entrant, and the filter state for the outer event
     /// has to be pushed to this stack.
-    ancestors: Mutex<Vec<FilterStateFrame>>,
+    ancestors: RefCell<Vec<FilterStateFrame>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1249,19 +1249,19 @@ impl FilterState {
             current: FilterStateFrame::new(),
             interest: RefCell::new(None),
             machine_state: RefCell::new(FilterMachineState::Preparing),
-            ancestors: Mutex::new(Vec::new()),
+            ancestors: RefCell::new(Vec::new()),
         }
     }
 
     fn push(&self) {
-        let mut ancestors = self.ancestors.lock().unwrap();
+        let mut ancestors = self.ancestors.borrow_mut();
 
         let frame = self.current.take();
         ancestors.push(frame);
     }
 
     fn pop(&self) {
-        let mut ancestors = self.ancestors.lock().unwrap();
+        let mut ancestors = self.ancestors.borrow_mut();
         let frame = ancestors.pop().unwrap_or_default();
 
         self.current.put(frame);
