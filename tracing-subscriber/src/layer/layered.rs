@@ -1,4 +1,6 @@
-use tracing_core::{metadata::Metadata, span, Dispatch, Event, Interest, LevelFilter, Subscriber};
+use tracing_core::{
+    callsite, metadata::Metadata, span, Dispatch, Event, Interest, LevelFilter, Subscriber,
+};
 
 use crate::{
     filter,
@@ -92,14 +94,16 @@ where
     S: Subscriber,
 {
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        self.pick_interest(self.layer.register_callsite(metadata), || {
-            self.inner.register_callsite(metadata)
-        })
+        self.pick_interest(
+            metadata.callsite(),
+            self.layer.register_callsite(metadata),
+            || self.inner.register_callsite(metadata),
+        )
     }
 
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        #[cfg(feature = "registry")]
-        filter::FilterState::start_filter_pass();
+        //#[cfg(feature = "registry")]
+        //filter::FilterState::start_filter_pass(metadata.callsite());
 
         if self.layer.enabled(metadata, self.ctx()) {
             // if the outer layer enables the callsite metadata, ask the subscriber.
@@ -110,7 +114,7 @@ where
             // If per-layer filters are in use, and we are short-circuiting (rather than calling
             // into the inner type), clear the current per-layer filter `enabled` state.
             #[cfg(feature = "registry")]
-            filter::FilterState::abandon_filter_pass();
+            filter::FilterState::abandon_filter_pass(metadata.callsite());
 
             false
         }
@@ -257,9 +261,11 @@ where
     }
 
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        self.pick_interest(self.layer.register_callsite(metadata), || {
-            self.inner.register_callsite(metadata)
-        })
+        self.pick_interest(
+            metadata.callsite(),
+            self.layer.register_callsite(metadata),
+            || self.inner.register_callsite(metadata),
+        )
     }
 
     fn enabled(&self, metadata: &Metadata<'_>, ctx: Context<'_, S>) -> bool {
@@ -433,9 +439,14 @@ where
         }
     }
 
-    fn pick_interest(&self, outer: Interest, inner: impl FnOnce() -> Interest) -> Interest {
+    fn pick_interest(
+        &self,
+        callsite: callsite::Identifier,
+        outer: Interest,
+        inner: impl FnOnce() -> Interest,
+    ) -> Interest {
         #[cfg(feature = "registry")]
-        filter::FilterState::start_interest_pass();
+        filter::FilterState::start_interest_pass(callsite.clone());
 
         if self.has_layer_filter {
             return inner();
@@ -448,7 +459,7 @@ where
             // into the inner type), abandon the interest pass (clearing its per-layer filter
             // interest state).
             #[cfg(feature = "registry")]
-            filter::FilterState::abandon_interest_pass();
+            filter::FilterState::abandon_interest_pass(callsite);
 
             return outer;
         }

@@ -42,7 +42,7 @@ use std::{
     thread_local,
 };
 use tracing_core::{
-    span,
+    callsite, span,
     subscriber::{Interest, Subscriber},
     Dispatch, Event, Metadata,
 };
@@ -136,7 +136,7 @@ pub(crate) struct FilterState {
     /// The currently active filter state frame for the event or span that is being processed.
     current: FilterStateFrame,
 
-    machine_state: Cell<FilterMachineState>,
+    machine_state: RefCell<FilterMachineState>,
 
     /// A stack of filter state frames for each event or span inside which the current event/span is
     /// nested.
@@ -148,10 +148,10 @@ pub(crate) struct FilterState {
     ancestors: Mutex<Vec<FilterStateFrame>>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum FilterMachineState {
     Preparing,
-    InPass,
+    InPass(callsite::Identifier),
     Abandoning,
 }
 
@@ -718,8 +718,8 @@ impl<L, F, S> Filtered<L, F, S> {
         self.id.0
     }
 
-    fn did_enable(&self, recalculate_enabled: impl FnOnce() -> bool, if_enabled: impl FnOnce()) {
-        FILTERING.with(|filtering| filtering.did_enable(self.id(), recalculate_enabled, if_enabled))
+    fn did_enable(&self, if_enabled: impl FnOnce()) {
+        FILTERING.with(|filtering| filtering.did_enable(self.id(), if_enabled))
     }
 
     /// Borrows the [`Filter`](crate::layer::Filter) used by this layer.
@@ -879,7 +879,7 @@ where
     fn enabled(&self, metadata: &Metadata<'_>, cx: Context<'_, S>) -> bool {
         let cx = cx.with_filter(self.id());
         let enabled = self.filter.enabled(metadata, &cx);
-        FILTERING.with(|filtering| filtering.set(self.id(), enabled));
+        FILTERING.with(|filtering| filtering.set(metadata.callsite(), self.id(), enabled));
 
         if enabled {
             // If the filter enabled this metadata, ask the wrapped layer if
@@ -905,14 +905,9 @@ where
 
     fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, cx: Context<'_, S>) {
         let cx = cx.with_filter(self.id());
-        let cx_for_recalculate = cx.clone();
-        self.did_enable(
-            || self.filter.enabled(attrs.metadata(), &cx_for_recalculate),
-            || {
-                self.filter.on_new_span(attrs, id, cx.clone());
-                self.layer.on_new_span(attrs, id, cx);
-            },
-        )
+        self.did_enable(|| {
+            self.layer.on_new_span(attrs, id, cx);
+        })
     }
 
     #[doc(hidden)]
@@ -937,14 +932,8 @@ where
 
     fn event_enabled(&self, event: &Event<'_>, cx: Context<'_, S>) -> bool {
         let cx = cx.with_filter(self.id());
-        let cx_for_recalculate = cx.clone();
-        let enabled = FILTERING.with(|filtering| {
-            filtering.and(
-                self.id(),
-                || self.filter.enabled(event.metadata(), &cx_for_recalculate),
-                || self.filter.event_enabled(event, &cx),
-            )
-        });
+        let enabled = FILTERING
+            .with(|filtering| filtering.and(self.id(), || self.filter.event_enabled(event, &cx)));
 
         if enabled {
             // If the filter enabled this event, ask the wrapped subscriber if
@@ -959,13 +948,9 @@ where
 
     fn on_event(&self, event: &Event<'_>, cx: Context<'_, S>) {
         let cx = cx.with_filter(self.id());
-        let cx_for_recalculate = cx.clone();
-        self.did_enable(
-            || self.filter.enabled(event.metadata(), &cx_for_recalculate),
-            || {
-                self.layer.on_event(event, cx);
-            },
-        )
+        self.did_enable(|| {
+            self.layer.on_event(event, cx);
+        })
     }
 
     fn on_enter(&self, id: &span::Id, cx: Context<'_, S>) {
@@ -1255,23 +1240,12 @@ impl FilterState {
     fn new() -> Self {
         Self {
             current: FilterStateFrame::new(),
-            machine_state: Cell::new(FilterMachineState::Preparing),
+            machine_state: RefCell::new(FilterMachineState::Preparing),
             ancestors: Mutex::new(Vec::new()),
         }
     }
 
     fn push(&self) {
-        #[cfg(debug_assertions)]
-        {
-            // Similarly (but the opposite) to in `pop()`, we expect that if a filter state is being
-            // pushed, we *should* be in the middle of a filter pass.
-            debug_assert_ne!(
-                self.current.counters.in_filter_pass.get(),
-                0,
-                "if we're pushing a filter state frame, we must be in a filter pass"
-            );
-        }
-
         let mut ancestors = self.ancestors.lock().unwrap();
 
         let frame = self.current.take();
@@ -1279,80 +1253,40 @@ impl FilterState {
     }
 
     fn pop(&self) {
-        #[cfg(debug_assertions)]
-        {
-            // When we're popping a frame, we expect that the current frame (the one that's going to
-            // be destroyed by the pop) is completely finished processing. That means no filters are
-            // in either kind of pass.
-            debug_assert_eq!(
-                self.current.counters.in_filter_pass.get(),
-                0,
-                "if we're popping a filter state frame, the filter pass must have ended"
-            );
-            debug_assert_eq!(
-                self.current.counters.in_interest_pass.get(),
-                0,
-                "if we're popping a filter state frame, the interest pass must have ended"
-            );
-            debug_assert_eq!(
-                self.current.filter_map.get().disabled,
-                FilterMap::default().disabled,
-                "if we're popping a filter state frame, the filter state should have been cleared"
-            );
-        }
-
         let mut ancestors = self.ancestors.lock().unwrap();
-
-        #[cfg(not(debug_assertions))]
         let frame = ancestors.pop().unwrap_or_default();
-
-        #[cfg(debug_assertions)]
-        let frame = ancestors
-            .pop()
-            .expect("the number of filter state frame pops and pushes should always match");
 
         self.current.put(frame);
     }
 
-    fn set(&self, filter: FilterId, enabled: bool) {
-        if self.current.filter_map.get().has_seen(filter) {
-            // If this function is being called and the filter state has already seen the provided
-            // filter ID, we're in a re-entrant call. Under normal circumstances a filter would
-            // never call this function more than once during the filter pass.
-            //
-            // So push the current filter state frame to the stack, so that we get a fresh frame to
-            // record the filter state in for this event or span.
-
-            match self.machine_state.get() {
-                FilterMachineState::Preparing => {
-                    self.machine_state.set(FilterMachineState::InPass);
-                }
-                FilterMachineState::InPass => {
-                    // We're in the middle of a pass, so this is the first time we've seen this
-                    // reëntrant call. We should push a frame.
-                    self.push();
-
-                    // Keep the state as InPass for two reasons:
-                    //
-                    // - We're about to record a value in the new pushed frame, so we're actively
-                    //   processing this pass.
-                    // - Calls to `set()` after this wouldn't trigger this check again, because the
-                    //   filter map wouldn't have seen the other filters (the frame is fresh), so
-                    //   there's no need to debounce the push call.
-                }
-                FilterMachineState::Abandoning => {
-                    // We've encountered a reëntrant call while we were abandoning another pass.
-                    // That just means that we hit the start of this new reëntrant call right after
-                    // having backed out of a previous reëntrant call.
-                    //
-                    // Push a frame so we can handle the reëntrant call, and set the state to InPass
-                    // (because we're about to start processing it).
-                    self.push();
-                    self.machine_state.set(FilterMachineState::InPass);
-                }
+    fn set(&self, callsite: callsite::Identifier, filter: FilterId, enabled: bool) {
+        let mut machine_state = self.machine_state.borrow_mut();
+        match *machine_state {
+            FilterMachineState::Preparing => {
+                // We're beginnning a filtering pass for the provided callsite. This is the first
+                // time we've seen set() called for this callsite, so set the machine state.
+                *machine_state = FilterMachineState::InPass(callsite);
             }
-        } else {
-            self.machine_state.set(FilterMachineState::InPass);
+            FilterMachineState::InPass(ref old_callsite) if *old_callsite == callsite => {
+                // We're not in a re-entrant call, keep the machine state the same and don't mess
+                // with any frames.
+            }
+            FilterMachineState::InPass(_) => {
+                // This is a re-entrant call, because it's for a different callsite than the one we
+                // were already processing.
+                self.push();
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
+            FilterMachineState::Abandoning => {
+                // We've encountered a re-entrant call while we were abandoning another pass. That
+                // just means that we hit the start of this new re-entrant call right after having
+                // backed out of a previous one.
+                //
+                // Push a frame so we can handle the re-entrancy, and set the state to InPass
+                // (because we're about to start processing it).
+                self.push();
+                *machine_state = FilterMachineState::InPass(callsite);
+            }
         }
 
         #[cfg(debug_assertions)]
@@ -1405,7 +1339,7 @@ impl FilterState {
         }
     }
 
-    pub(crate) fn event_enabled() -> bool {
+    pub(crate) fn event_enabled(callsite: callsite::Identifier) -> bool {
         FILTERING
             .try_with(|this| {
                 let enabled = this.current.filter_map.get().any_enabled();
@@ -1418,26 +1352,29 @@ impl FilterState {
                             FilterMap::default().disabled
                         );
                     }
-
-                    // Nothing enabled this event, we won't tick back down the
-                    // counter in `did_enable`. Reset it.
-                    if !enabled {
-                        this.current.counters.in_filter_pass.set(0);
-                    }
                 }
 
                 // Since nothing enabled the event, we should pop the filter state frame (since
                 // `did_enable` won't be called - same reasoning as in the debug_assertions block
                 // above).
                 if !enabled {
-                    match this.machine_state.get() {
-                        FilterMachineState::Preparing => todo!(),
-                        FilterMachineState::InPass => {
+                    let mut machine_state = this.machine_state.borrow_mut();
+                    match *machine_state {
+                        FilterMachineState::Preparing => {
                             // This is the first time during this pass that we've seen a call to
                             // anything that would pop the active frame. We should therefore pop the
                             // frame and set the machine state to Abandoning.
                             this.pop();
-                            this.machine_state.set(FilterMachineState::Abandoning);
+                            *machine_state = FilterMachineState::Abandoning;
+                        }
+                        FilterMachineState::InPass(ref current_callsite) => {
+                            assert_eq!(*current_callsite, callsite);
+
+                            // This is the first time during this pass that we've seen a call to
+                            // anything that would pop the active frame. We should therefore pop the
+                            // frame and set the machine state to Abandoning.
+                            this.pop();
+                            *machine_state = FilterMachineState::Abandoning;
                         }
                         FilterMachineState::Abandoning => {
                             // We're already abandoning the current pass, so don't pop again.
@@ -1455,13 +1392,14 @@ impl FilterState {
     ///
     /// This is used to implement the `on_event` and `new_span` methods for
     /// `Filtered`.
-    fn did_enable(
-        &self,
-        filter: FilterId,
-        recalculate_enabled: impl FnOnce() -> bool,
-        if_enabled: impl FnOnce(),
-    ) {
-        self.machine_state.set(FilterMachineState::InPass);
+    fn did_enable(&self, filter: FilterId, if_enabled: impl FnOnce()) {
+        let machine_state = self.machine_state.borrow();
+        match *machine_state {
+            FilterMachineState::Preparing => {}
+            FilterMachineState::InPass(_) => {}
+            FilterMachineState::Abandoning => {}
+        }
+        drop(machine_state);
 
         let map = self.current.filter_map.get();
 
@@ -1499,10 +1437,10 @@ impl FilterState {
             )
         }
 
-        if !self.current.filter_map.get().any_seen() && !self.ancestors.lock().unwrap().is_empty() {
-            match self.machine_state.get() {
-                FilterMachineState::Preparing => todo!(),
-                FilterMachineState::InPass => {
+        if !self.current.filter_map.get().any_seen() {
+            let mut machine_state = self.machine_state.borrow_mut();
+            match *machine_state {
+                FilterMachineState::Preparing | FilterMachineState::InPass(_) => {
                     // We were the last filter in the pass to clear our state, and there is at least
                     // one frame on the stack. This means we were processing a re-entrant
                     // event/span, so pop the frame to restore the state for the parent event/span.
@@ -1510,21 +1448,24 @@ impl FilterState {
 
                     // Set the machine state to Abandoning so that other calls don't try to pop this
                     // frame a second time.
-                    self.machine_state.set(FilterMachineState::Abandoning);
+                    *machine_state = FilterMachineState::Abandoning;
                 }
-                FilterMachineState::Abandoning => todo!(),
+                FilterMachineState::Abandoning => {
+                    // Don't do anything, we're already in an abandoning state.
+                }
             }
         }
     }
 
     /// Run a second filtering pass, e.g. for Layer::event_enabled.
-    fn and(
-        &self,
-        filter: FilterId,
-        recalculate_enabled: impl FnOnce() -> bool,
-        new_enabled: impl FnOnce() -> bool,
-    ) -> bool {
-        self.machine_state.set(FilterMachineState::InPass);
+    fn and(&self, filter: FilterId, new_enabled: impl FnOnce() -> bool) -> bool {
+        let machine_state = self.machine_state.borrow();
+        match *machine_state {
+            FilterMachineState::Preparing => {}
+            FilterMachineState::InPass(_) => {}
+            FilterMachineState::Abandoning => {}
+        }
+        drop(machine_state);
 
         let map = self.current.filter_map.get();
 
@@ -1552,7 +1493,7 @@ impl FilterState {
     ///
     /// When this function has been called, the interest pass must always either be ended or
     /// abandoned (i.e. one of `abandon_interest_pass()` or `take_interest()` must be called).
-    pub(crate) fn start_interest_pass() {
+    pub(crate) fn start_interest_pass(callsite: callsite::Identifier) {
         let _ = FILTERING.try_with(|filtering| {
             // If any filters have seen the filter map, that means they were given the opportunity
             // to determine the enabled state for an event, so we're in a filtering pass.
@@ -1570,7 +1511,8 @@ impl FilterState {
                     );
                 }
 
-                match filtering.machine_state.get() {
+                let mut machine_state = filtering.machine_state.borrow_mut();
+                match *machine_state {
                     FilterMachineState::Preparing => {
                         // We've been informed that a pass is starting, but we're already preparing
                         // a new pass (i.e. push() was already called, and we haven't been asked to
@@ -1578,19 +1520,20 @@ impl FilterState {
                         //
                         // So don't push a frame, it would be a duplicate push.
                     }
-                    FilterMachineState::InPass => {
-                        // Since an interest pass is starting while we're in a filtering pass, we
-                        // need to temporarily store the state for the event/span being filtered,
-                        // until the inner event/span is done processing. Push it to the stack, and
-                        // it'll be popped later in one of a few places (either when the interest
-                        // pass is abandoned because the interest was determined to be Never, or
-                        // when we proceed to a filter pass and either complete or abandon the
-                        // filter pass).
+                    FilterMachineState::InPass(ref old_callsite) if *old_callsite == callsite => {
+                        // Don't do anything, we're not re-entrantly starting a new interest pass.
+                    }
+                    FilterMachineState::InPass(_) => {
+                        // Since an interest pass for a new callsite is starting while we're already
+                        // in a pass, we need to temporarily store the state for the event/span
+                        // being filtered, until the inner event/span is done processing. Push it to
+                        // the stack, and it'll be popped later in one of a few places (either when
+                        // the interest pass is abandoned because the interest was determined to be
+                        // Never, or when we proceed to a filter pass and either complete or abandon
+                        // the filter pass).
                         filtering.push();
 
-                        // Because we're now in the phase where we're moving to a nested pass, set
-                        // our machine state to Preparing.
-                        filtering.machine_state.set(FilterMachineState::Preparing);
+                        *machine_state = FilterMachineState::InPass(callsite);
                     }
                     FilterMachineState::Abandoning => todo!(),
                 }
@@ -1612,7 +1555,7 @@ impl FilterState {
     /// we're processing a re-entrant event/span but the outer state wasn't correctly pushed when
     /// the interest pass began (i.e. `start_interest_pass()` wasn't called in a place where it
     /// should have been). In debug mode, this will trigger an assertion failure.
-    pub(crate) fn abandon_interest_pass() {
+    pub(crate) fn abandon_interest_pass(callsite: callsite::Identifier) {
         let _ = FILTERING.try_with(|filtering| {
             #[cfg(debug_assertions)]
             {
@@ -1632,32 +1575,17 @@ impl FilterState {
                 }
             }
 
-            match filtering.machine_state.get() {
-                FilterMachineState::Preparing | FilterMachineState::InPass => {
-                    if !filtering.ancestors.lock().unwrap().is_empty() {
-                        // If we're in a re-entrant interest pass (i.e. the current state was pushed
-                        // by `start_interest_pass()`), we need to pop a frame from the stack.
-                        filtering.pop();
-                    } else {
-                        // Otherwise, just clear the interest, and reset the debug counter.
-                        let _ = filtering
-                            .current
-                            .interest
-                            .try_borrow_mut()
-                            .ok()
-                            .and_then(|mut interest| interest.take());
-
-                        #[cfg(debug_assertions)]
-                        {
-                            filtering.current.counters.in_interest_pass.set(0);
-                        }
-                    }
-
-                    filtering.machine_state.set(FilterMachineState::Abandoning);
+            let mut machine_state = filtering.machine_state.borrow_mut();
+            match *machine_state {
+                FilterMachineState::InPass(ref current_callsite)
+                    if *current_callsite == callsite =>
+                {
+                    filtering.pop();
+                    *machine_state = FilterMachineState::Abandoning;
                 }
-                FilterMachineState::Abandoning => {
-                    // Do nothing, we're already abandoning the pass so any actions here would be
-                    // duplicates.
+
+                _ => {
+                    // Do nothing, this isn't the callsite we're abandoning the pass for.
                 }
             }
         });
@@ -1692,13 +1620,11 @@ impl FilterState {
             .ok()?
     }
 
-    pub(crate) fn start_filter_pass() {
-        let _ = FILTERING.try_with(|filtering| {
-            //if filtering.machine_state.get() != FilterMachineState::Abandoning {
-            filtering.machine_state.set(FilterMachineState::Preparing);
-            //}
-        });
-    }
+    //pub(crate) fn start_filter_pass(callsite: callsite::Identifier) {
+    //    let _ = FILTERING.try_with(|filtering| {
+    //        *filtering.machine_state.borrow_mut() = FilterMachineState::InPass(callsite);
+    //    });
+    //}
 
     /// Abandons the active filter pass, if there is one, clearing the current in-progress filter
     /// state.
@@ -1706,33 +1632,34 @@ impl FilterState {
     /// This resets the [`FilterMap`] and current [`Interest`] as well as clearing the debug
     /// counters, and if the current filter pass was for a re-entrant event or span, pops the outer
     /// event/span's filter state from the stack.
-    pub(crate) fn abandon_filter_pass() {
+    pub(crate) fn abandon_filter_pass(callsite: callsite::Identifier) {
         // Drop the `Result` returned by `try_with` --- if we are in the middle
         // a panic and the thread-local has been torn down, that's fine, just
         // ignore it rather than panicking.
         let _ = FILTERING.try_with(|filtering| {
-            match filtering.machine_state.get() {
+            let mut machine_state = filtering.machine_state.borrow_mut();
+            match *machine_state {
                 FilterMachineState::Preparing => {
-                    filtering.machine_state.set(FilterMachineState::Abandoning);
+                    *machine_state = FilterMachineState::Abandoning;
                 }
-                FilterMachineState::InPass => {
-                    if !filtering.ancestors.lock().unwrap().is_empty() {
-                        #[cfg(debug_assertions)]
-                        {
-                            debug_assert_ne!(
-                                filtering.current.counters.in_filter_pass.get(),
-                                0,
-                                "if we're abandoning a filter pass, the counter should not be zero"
-                            );
-                        }
-
-                        filtering.pop();
-                    } else {
-                        filtering.current.filter_map.set(FilterMap::default());
-
-                        #[cfg(debug_assertions)]
-                        filtering.current.counters.in_filter_pass.set(0);
+                FilterMachineState::InPass(ref current_callsite)
+                    if *current_callsite == callsite =>
+                {
+                    #[cfg(debug_assertions)]
+                    {
+                        debug_assert_ne!(
+                            filtering.current.counters.in_filter_pass.get(),
+                            0,
+                            "if we're abandoning a filter pass, the counter should not be zero"
+                        );
                     }
+
+                    filtering.pop();
+                    *machine_state = FilterMachineState::Abandoning;
+                }
+                FilterMachineState::InPass(_) => {
+                    // Don't abandon anything, this isn't the callsite we're supposed to abandon
+                    // for.
                 }
                 FilterMachineState::Abandoning => {
                     // Do nothing, we're already abandoning the pass so any actions here would be
