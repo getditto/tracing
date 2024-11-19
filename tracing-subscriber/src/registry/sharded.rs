@@ -226,9 +226,9 @@ impl Subscriber for Registry {
         Interest::always()
     }
 
-    fn enabled(&self, _: &Metadata<'_>) -> bool {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         if self.has_per_layer_filters() {
-            return FilterState::event_enabled();
+            return FilterState::event_enabled(metadata.callsite());
         }
         true
     }
@@ -275,9 +275,9 @@ impl Subscriber for Registry {
 
     fn record_follows_from(&self, _span: &span::Id, _follows: &span::Id) {}
 
-    fn event_enabled(&self, _event: &Event<'_>) -> bool {
+    fn event_enabled(&self, event: &Event<'_>) -> bool {
         if self.has_per_layer_filters() {
-            return FilterState::event_enabled();
+            return FilterState::event_enabled(event.metadata().callsite());
         }
         true
     }
