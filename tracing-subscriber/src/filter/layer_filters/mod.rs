@@ -38,7 +38,7 @@ use std::{
     fmt,
     marker::PhantomData,
     ops::Deref,
-    sync::Arc,
+    sync::{Arc, Mutex},
     thread_local,
 };
 use tracing_core::{
@@ -133,7 +133,32 @@ pub(crate) struct FilterMap {
 ///     recording a span or event can be skipped entirely.
 #[derive(Debug)]
 pub(crate) struct FilterState {
+    /// The currently active filter state frame for the event or span that is being processed.
+    current: FilterStateFrame,
+
+    machine_state: Cell<FilterMachineState>,
+
+    /// A stack of filter state frames for each event or span inside which the current event/span is
+    /// nested.
+    ///
+    /// When a new event or span is passed to a per-layer filter while it's still in between the
+    /// `Filtered::enabled` and `Filtered::did_enable` calls that bookend the processing of another
+    /// event, then the new event is considered re-entrant, and the filter state for the outer event
+    /// has to be pushed to this stack.
+    ancestors: Mutex<Vec<FilterStateFrame>>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+enum FilterMachineState {
+    Preparing,
+    InPass,
+    Abandoning,
+}
+
+#[derive(Debug)]
+struct FilterStateFrame {
     filter_map: Cell<FilterMap>,
+
     // TODO(eliza): `Interest`s should _probably_ be `Copy`. The only reason
     // they're not is our Obsessive Commitment to Forwards-Compatibility. If
     // this changes in tracing-core`, we can make this a `Cell` rather than
@@ -142,6 +167,54 @@ pub(crate) struct FilterState {
 
     #[cfg(debug_assertions)]
     counters: DebugCounters,
+}
+
+impl FilterStateFrame {
+    fn new() -> Self {
+        Self {
+            filter_map: Cell::new(FilterMap::default()),
+            interest: RefCell::new(None),
+
+            #[cfg(debug_assertions)]
+            counters: DebugCounters::default(),
+        }
+    }
+
+    fn take(&self) -> FilterStateFrame {
+        let filter_map = self.filter_map.take();
+        let interest = self.interest.take();
+
+        #[cfg(debug_assertions)]
+        let counters = self.counters.take();
+
+        FilterStateFrame {
+            filter_map: Cell::new(filter_map),
+            interest: RefCell::new(interest),
+
+            #[cfg(debug_assertions)]
+            counters,
+        }
+    }
+
+    fn put(&self, frame: FilterStateFrame) {
+        let filter_map = frame.filter_map.take();
+        let interest = frame.interest.take();
+
+        #[cfg(debug_assertions)]
+        let counters = frame.counters.take();
+
+        self.filter_map.set(filter_map);
+        self.interest.replace(interest);
+
+        #[cfg(debug_assertions)]
+        self.counters.put(counters);
+    }
+}
+
+impl Default for FilterStateFrame {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Extra counters added to `FilterState` used only to make debug assertions.
@@ -155,6 +228,27 @@ struct DebugCounters {
     /// How many per-layer filters have participated in the current `register_callsite`
     /// call?
     in_interest_pass: Cell<usize>,
+}
+
+#[cfg(debug_assertions)]
+impl DebugCounters {
+    fn take(&self) -> DebugCounters {
+        let in_filter_pass = self.in_filter_pass.take();
+        let in_interest_pass = self.in_interest_pass.take();
+
+        DebugCounters {
+            in_filter_pass: Cell::new(in_filter_pass),
+            in_interest_pass: Cell::new(in_interest_pass),
+        }
+    }
+
+    fn put(&self, counters: DebugCounters) {
+        let in_filter_pass = counters.in_filter_pass.take();
+        let in_interest_pass = counters.in_interest_pass.take();
+
+        self.in_filter_pass.set(in_filter_pass);
+        self.in_interest_pass.set(in_interest_pass);
+    }
 }
 
 thread_local! {
@@ -1120,6 +1214,11 @@ impl FilterMap {
     pub(crate) fn any_enabled(self) -> bool {
         self.disabled != std::u64::MAX
     }
+
+    #[inline]
+    pub(crate) fn any_seen(self) -> bool {
+        self.seen != 0
+    }
 }
 
 impl fmt::Debug for FilterMap {
@@ -1155,46 +1254,142 @@ impl fmt::Binary for FilterMap {
 impl FilterState {
     fn new() -> Self {
         Self {
-            filter_map: Cell::new(FilterMap::default()),
-            interest: RefCell::new(None),
-
-            #[cfg(debug_assertions)]
-            counters: DebugCounters::default(),
+            current: FilterStateFrame::new(),
+            machine_state: Cell::new(FilterMachineState::Preparing),
+            ancestors: Mutex::new(Vec::new()),
         }
     }
 
-    fn set(&self, filter: FilterId, enabled: bool) {
+    fn push(&self) {
         #[cfg(debug_assertions)]
         {
-            let in_current_pass = self.counters.in_filter_pass.get();
-            if in_current_pass == 0 {
-                debug_assert_eq!(
-                    self.filter_map.get().disabled,
-                    FilterMap::default().disabled
-                );
-            }
-            self.counters.in_filter_pass.set(in_current_pass + 1);
+            // Similarly (but the opposite) to in `pop()`, we expect that if a filter state is being
+            // pushed, we *should* be in the middle of a filter pass.
+            debug_assert_ne!(
+                self.current.counters.in_filter_pass.get(),
+                0,
+                "if we're pushing a filter state frame, we must be in a filter pass"
+            );
+        }
+
+        let mut ancestors = self.ancestors.lock().unwrap();
+
+        let frame = self.current.take();
+        ancestors.push(frame);
+    }
+
+    fn pop(&self) {
+        #[cfg(debug_assertions)]
+        {
+            // When we're popping a frame, we expect that the current frame (the one that's going to
+            // be destroyed by the pop) is completely finished processing. That means no filters are
+            // in either kind of pass.
             debug_assert_eq!(
-                self.counters.in_interest_pass.get(),
+                self.current.counters.in_filter_pass.get(),
+                0,
+                "if we're popping a filter state frame, the filter pass must have ended"
+            );
+            debug_assert_eq!(
+                self.current.counters.in_interest_pass.get(),
+                0,
+                "if we're popping a filter state frame, the interest pass must have ended"
+            );
+            debug_assert_eq!(
+                self.current.filter_map.get().disabled,
+                FilterMap::default().disabled,
+                "if we're popping a filter state frame, the filter state should have been cleared"
+            );
+        }
+
+        let mut ancestors = self.ancestors.lock().unwrap();
+
+        #[cfg(not(debug_assertions))]
+        let frame = ancestors.pop().unwrap_or_default();
+
+        #[cfg(debug_assertions)]
+        let frame = ancestors
+            .pop()
+            .expect("the number of filter state frame pops and pushes should always match");
+
+        self.current.put(frame);
+    }
+
+    fn set(&self, filter: FilterId, enabled: bool) {
+        if self.current.filter_map.get().has_seen(filter) {
+            // If this function is being called and the filter state has already seen the provided
+            // filter ID, we're in a re-entrant call. Under normal circumstances a filter would
+            // never call this function more than once during the filter pass.
+            //
+            // So push the current filter state frame to the stack, so that we get a fresh frame to
+            // record the filter state in for this event or span.
+
+            match self.machine_state.get() {
+                FilterMachineState::Preparing => {
+                    self.machine_state.set(FilterMachineState::InPass);
+                }
+                FilterMachineState::InPass => {
+                    // We're in the middle of a pass, so this is the first time we've seen this
+                    // reëntrant call. We should push a frame.
+                    self.push();
+
+                    // Keep the state as InPass for two reasons:
+                    //
+                    // - We're about to record a value in the new pushed frame, so we're actively
+                    //   processing this pass.
+                    // - Calls to `set()` after this wouldn't trigger this check again, because the
+                    //   filter map wouldn't have seen the other filters (the frame is fresh), so
+                    //   there's no need to debounce the push call.
+                }
+                FilterMachineState::Abandoning => {
+                    // We've encountered a reëntrant call while we were abandoning another pass.
+                    // That just means that we hit the start of this new reëntrant call right after
+                    // having backed out of a previous reëntrant call.
+                    //
+                    // Push a frame so we can handle the reëntrant call, and set the state to InPass
+                    // (because we're about to start processing it).
+                    self.push();
+                    self.machine_state.set(FilterMachineState::InPass);
+                }
+            }
+        } else {
+            self.machine_state.set(FilterMachineState::InPass);
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            let in_current_pass = self.current.counters.in_filter_pass.get();
+            if in_current_pass == 0 {
+                debug_assert_eq!(self.current.filter_map.get(), FilterMap::default());
+            }
+            self.current
+                .counters
+                .in_filter_pass
+                .set(in_current_pass + 1);
+            debug_assert_eq!(
+                self.current.counters.in_interest_pass.get(),
                 0,
                 "if we are in or starting a filter pass, we must not be in an interest pass."
             )
         }
 
-        self.filter_map
-            .set(self.filter_map.get().set(filter, enabled))
+        self.current
+            .filter_map
+            .set(self.current.filter_map.get().set(filter, enabled))
     }
 
     fn add_interest(&self, interest: Interest) {
-        let mut curr_interest = self.interest.borrow_mut();
+        let mut curr_interest = self.current.interest.borrow_mut();
 
         #[cfg(debug_assertions)]
         {
-            let in_current_pass = self.counters.in_interest_pass.get();
+            let in_current_pass = self.current.counters.in_interest_pass.get();
             if in_current_pass == 0 {
                 debug_assert!(curr_interest.is_none());
             }
-            self.counters.in_interest_pass.set(in_current_pass + 1);
+            self.current
+                .counters
+                .in_interest_pass
+                .set(in_current_pass + 1);
         }
 
         if let Some(curr_interest) = curr_interest.as_mut() {
@@ -1213,12 +1408,13 @@ impl FilterState {
     pub(crate) fn event_enabled() -> bool {
         FILTERING
             .try_with(|this| {
-                let enabled = this.filter_map.get().any_enabled();
+                let enabled = this.current.filter_map.get().any_enabled();
+
                 #[cfg(debug_assertions)]
                 {
-                    if this.counters.in_filter_pass.get() == 0 {
+                    if this.current.counters.in_filter_pass.get() == 0 {
                         debug_assert_eq!(
-                            this.filter_map.get().disabled,
+                            this.current.filter_map.get().disabled,
                             FilterMap::default().disabled
                         );
                     }
@@ -1226,9 +1422,29 @@ impl FilterState {
                     // Nothing enabled this event, we won't tick back down the
                     // counter in `did_enable`. Reset it.
                     if !enabled {
-                        this.counters.in_filter_pass.set(0);
+                        this.current.counters.in_filter_pass.set(0);
                     }
                 }
+
+                // Since nothing enabled the event, we should pop the filter state frame (since
+                // `did_enable` won't be called - same reasoning as in the debug_assertions block
+                // above).
+                if !enabled {
+                    match this.machine_state.get() {
+                        FilterMachineState::Preparing => todo!(),
+                        FilterMachineState::InPass => {
+                            // This is the first time during this pass that we've seen a call to
+                            // anything that would pop the active frame. We should therefore pop the
+                            // frame and set the machine state to Abandoning.
+                            this.pop();
+                            this.machine_state.set(FilterMachineState::Abandoning);
+                        }
+                        FilterMachineState::Abandoning => {
+                            // We're already abandoning the current pass, so don't pop again.
+                        }
+                    }
+                }
+
                 enabled
             })
             .unwrap_or(true)
@@ -1245,47 +1461,59 @@ impl FilterState {
         recalculate_enabled: impl FnOnce() -> bool,
         if_enabled: impl FnOnce(),
     ) {
-        let map = self.filter_map.get();
-        let enabled = if map.has_seen(filter) {
-            map.is_enabled(filter)
-        } else {
-            recalculate_enabled()
-        };
+        self.machine_state.set(FilterMachineState::InPass);
 
-        let new_map = if enabled {
+        let map = self.current.filter_map.get();
+
+        if map.is_enabled(filter) {
             // If the filter didn't disable the current span/event, run the
             // callback.
             if_enabled();
+        }
 
-            self.filter_map.get().clear_seen(filter)
-        } else {
-            // Otherwise, if this filter _did_ disable the span or event
-            // currently being processed, clear its bit from this thread's
-            // `FilterState`. The bit has already been "consumed" by skipping
-            // this callback, and we need to ensure that the `FilterMap` for
-            // this thread is reset when the *next* `enabled` call occurs.
-            self.filter_map.get().set(filter, true).clear_seen(filter)
-        };
-
-        self.filter_map.set(new_map);
+        self.current.filter_map.set(
+            self.current
+                .filter_map
+                .get()
+                .set(filter, true)
+                .clear_seen(filter),
+        );
 
         #[cfg(debug_assertions)]
         {
-            let in_current_pass = self.counters.in_filter_pass.get();
+            let in_current_pass = self.current.counters.in_filter_pass.get();
             if in_current_pass <= 1 {
                 debug_assert_eq!(
-                    self.filter_map.get().disabled,
+                    self.current.filter_map.get().disabled,
                     FilterMap::default().disabled
                 );
             }
-            self.counters
+            self.current
+                .counters
                 .in_filter_pass
                 .set(in_current_pass.saturating_sub(1));
             debug_assert_eq!(
-                self.counters.in_interest_pass.get(),
+                self.current.counters.in_interest_pass.get(),
                 0,
                 "if we are in a filter pass, we must not be in an interest pass."
             )
+        }
+
+        if !self.current.filter_map.get().any_seen() && !self.ancestors.lock().unwrap().is_empty() {
+            match self.machine_state.get() {
+                FilterMachineState::Preparing => todo!(),
+                FilterMachineState::InPass => {
+                    // We were the last filter in the pass to clear our state, and there is at least
+                    // one frame on the stack. This means we were processing a re-entrant
+                    // event/span, so pop the frame to restore the state for the parent event/span.
+                    self.pop();
+
+                    // Set the machine state to Abandoning so that other calls don't try to pop this
+                    // frame a second time.
+                    self.machine_state.set(FilterMachineState::Abandoning);
+                }
+                FilterMachineState::Abandoning => todo!(),
+            }
         }
     }
 
@@ -1296,55 +1524,229 @@ impl FilterState {
         recalculate_enabled: impl FnOnce() -> bool,
         new_enabled: impl FnOnce() -> bool,
     ) -> bool {
-        let map = self.filter_map.get();
-        let old_enabled = if map.has_seen(filter) {
-            map.is_enabled(filter)
-        } else {
-            recalculate_enabled()
-        };
+        self.machine_state.set(FilterMachineState::InPass);
 
-        let enabled = old_enabled && new_enabled();
-        self.filter_map
-            .set(self.filter_map.get().set(filter, enabled));
+        let map = self.current.filter_map.get();
+
+        // Unlike in `did_enable()` above, we *expect* that we've already seen the filter state with
+        // this filter. If we haven't, panic for now to root out any cases where this happens.
+        if !map.has_seen(filter) {
+            panic!("and() should only be called on a second filtering pass");
+        }
+
+        let enabled = map.is_enabled(filter) && new_enabled();
+        self.current
+            .filter_map
+            .set(self.current.filter_map.get().set(filter, enabled));
+
         enabled
     }
 
-    /// Clears the current in-progress filter state.
+    /// Inform the filter state that an interest pass is beginning on this thread.
     ///
-    /// This resets the [`FilterMap`] and current [`Interest`] as well as
-    /// clearing the debug counters.
-    pub(crate) fn clear_enabled() {
-        // Drop the `Result` returned by `try_with` --- if we are in the middle
-        // a panic and the thread-local has been torn down, that's fine, just
-        // ignore it ratehr than panicking.
+    /// This will only have an effect in one specific situation: when an interest pass begins while
+    /// the filter state already contains data from a filtering pass. This will inform us that the
+    /// event or span we're calculating interest for is re-entrant (i.e. we're processing this
+    /// event/span in between when calculating the enabled state for and actually dispatching
+    /// another event).
+    ///
+    /// When this function has been called, the interest pass must always either be ended or
+    /// abandoned (i.e. one of `abandon_interest_pass()` or `take_interest()` must be called).
+    pub(crate) fn start_interest_pass() {
         let _ = FILTERING.try_with(|filtering| {
-            filtering.filter_map.set(FilterMap::default());
+            // If any filters have seen the filter map, that means they were given the opportunity
+            // to determine the enabled state for an event, so we're in a filtering pass.
+            if filtering.current.filter_map.get().any_seen() {
+                #[cfg(debug_assertions)]
+                {
+                    // If we're running in debug mode, we can make an additional check: if the state
+                    // of the actual filter map indicates that a filter has seen it, which should
+                    // mean we're in a filter pass, then the counter for the number of filters in a
+                    // filter pass should not be zero.
+                    debug_assert_ne!(
+                        filtering.current.counters.in_filter_pass.get(),
+                        0,
+                        "if any filters have seen the filter map, we should be in a filter pass"
+                    );
+                }
 
-            #[cfg(debug_assertions)]
-            filtering.counters.in_filter_pass.set(0);
+                match filtering.machine_state.get() {
+                    FilterMachineState::Preparing => {
+                        // We've been informed that a pass is starting, but we're already preparing
+                        // a new pass (i.e. push() was already called, and we haven't been asked to
+                        // set any values in the frame since that happened).
+                        //
+                        // So don't push a frame, it would be a duplicate push.
+                    }
+                    FilterMachineState::InPass => {
+                        // Since an interest pass is starting while we're in a filtering pass, we
+                        // need to temporarily store the state for the event/span being filtered,
+                        // until the inner event/span is done processing. Push it to the stack, and
+                        // it'll be popped later in one of a few places (either when the interest
+                        // pass is abandoned because the interest was determined to be Never, or
+                        // when we proceed to a filter pass and either complete or abandon the
+                        // filter pass).
+                        filtering.push();
+
+                        // Because we're now in the phase where we're moving to a nested pass, set
+                        // our machine state to Preparing.
+                        filtering.machine_state.set(FilterMachineState::Preparing);
+                    }
+                    FilterMachineState::Abandoning => todo!(),
+                }
+
+                // We're now correctly set up to process the inner (re-entrant) event/span.
+            }
         });
     }
 
+    /// Abandon the active interest pass, if there is one.
+    ///
+    /// The really important situation for this to be called in is when `start_interest_pass()` was
+    /// called earlier. The interest pass must be ended, either by abandoning it with this function
+    /// or completing it by calling `take_interest()`, because in a situation where we're processing
+    /// a re-entrant event or span, we must make sure to pop a filter state from the stack.
+    ///
+    /// It's completely fine for this function to be called if there is no interest pass active, but
+    /// it should not ever be called when there is a filter pass active. That would indicate that
+    /// we're processing a re-entrant event/span but the outer state wasn't correctly pushed when
+    /// the interest pass began (i.e. `start_interest_pass()` wasn't called in a place where it
+    /// should have been). In debug mode, this will trigger an assertion failure.
+    pub(crate) fn abandon_interest_pass() {
+        let _ = FILTERING.try_with(|filtering| {
+            #[cfg(debug_assertions)]
+            {
+                debug_assert_eq!(
+                    filtering.current.counters.in_filter_pass.get(),
+                    0,
+                    "we should not be in a filter pass when abandoning an interest pass"
+                );
+
+                if filtering.current.counters.in_interest_pass.get() == 0 {
+                    if let Ok(interest) = filtering.current.interest.try_borrow() {
+                        debug_assert!(
+                            interest.is_none(),
+                            "we shouldn't have an interest if there are no filters in the pass"
+                        );
+                    }
+                }
+            }
+
+            match filtering.machine_state.get() {
+                FilterMachineState::Preparing | FilterMachineState::InPass => {
+                    if !filtering.ancestors.lock().unwrap().is_empty() {
+                        // If we're in a re-entrant interest pass (i.e. the current state was pushed
+                        // by `start_interest_pass()`), we need to pop a frame from the stack.
+                        filtering.pop();
+                    } else {
+                        // Otherwise, just clear the interest, and reset the debug counter.
+                        let _ = filtering
+                            .current
+                            .interest
+                            .try_borrow_mut()
+                            .ok()
+                            .and_then(|mut interest| interest.take());
+
+                        #[cfg(debug_assertions)]
+                        {
+                            filtering.current.counters.in_interest_pass.set(0);
+                        }
+                    }
+
+                    filtering.machine_state.set(FilterMachineState::Abandoning);
+                }
+                FilterMachineState::Abandoning => {
+                    // Do nothing, we're already abandoning the pass so any actions here would be
+                    // duplicates.
+                }
+            }
+        });
+    }
+
+    /// End the interest pass and take the interest value out, if there is one.
     pub(crate) fn take_interest() -> Option<Interest> {
         FILTERING
             .try_with(|filtering| {
                 #[cfg(debug_assertions)]
                 {
-                    if filtering.counters.in_interest_pass.get() == 0 {
-                        debug_assert!(filtering.interest.try_borrow().ok()?.is_none());
+                    if filtering.current.counters.in_interest_pass.get() == 0 {
+                        if let Ok(interest) = filtering.current.interest.try_borrow() {
+                            debug_assert!(
+                                interest.is_none(),
+                                "we shouldn't have an interest if there are no filters in the pass"
+                            );
+                        }
                     }
-                    filtering.counters.in_interest_pass.set(0);
+                    filtering.current.counters.in_interest_pass.set(0);
                 }
-                filtering.interest.try_borrow_mut().ok()?.take()
+
+                let interest = filtering
+                    .current
+                    .interest
+                    .try_borrow_mut()
+                    .ok()
+                    .and_then(|mut interest| interest.take());
+
+                interest
             })
             .ok()?
     }
 
+    pub(crate) fn start_filter_pass() {
+        let _ = FILTERING.try_with(|filtering| {
+            //if filtering.machine_state.get() != FilterMachineState::Abandoning {
+            filtering.machine_state.set(FilterMachineState::Preparing);
+            //}
+        });
+    }
+
+    /// Abandons the active filter pass, if there is one, clearing the current in-progress filter
+    /// state.
+    ///
+    /// This resets the [`FilterMap`] and current [`Interest`] as well as clearing the debug
+    /// counters, and if the current filter pass was for a re-entrant event or span, pops the outer
+    /// event/span's filter state from the stack.
+    pub(crate) fn abandon_filter_pass() {
+        // Drop the `Result` returned by `try_with` --- if we are in the middle
+        // a panic and the thread-local has been torn down, that's fine, just
+        // ignore it rather than panicking.
+        let _ = FILTERING.try_with(|filtering| {
+            match filtering.machine_state.get() {
+                FilterMachineState::Preparing => {
+                    filtering.machine_state.set(FilterMachineState::Abandoning);
+                }
+                FilterMachineState::InPass => {
+                    if !filtering.ancestors.lock().unwrap().is_empty() {
+                        #[cfg(debug_assertions)]
+                        {
+                            debug_assert_ne!(
+                                filtering.current.counters.in_filter_pass.get(),
+                                0,
+                                "if we're abandoning a filter pass, the counter should not be zero"
+                            );
+                        }
+
+                        filtering.pop();
+                    } else {
+                        filtering.current.filter_map.set(FilterMap::default());
+
+                        #[cfg(debug_assertions)]
+                        filtering.current.counters.in_filter_pass.set(0);
+                    }
+                }
+                FilterMachineState::Abandoning => {
+                    // Do nothing, we're already abandoning the pass so any actions here would be
+                    // duplicates.
+                }
+            }
+        });
+    }
+
     pub(crate) fn filter_map(&self) -> FilterMap {
-        let map = self.filter_map.get();
+        let map = self.current.filter_map.get();
         #[cfg(debug_assertions)]
         {
-            if self.counters.in_filter_pass.get() == 0 {
+            if self.current.counters.in_filter_pass.get() == 0 {
                 debug_assert_eq!(map.disabled, FilterMap::default().disabled);
             }
         }
