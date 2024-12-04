@@ -1,13 +1,13 @@
 #![deny(rust_2018_idioms)]
 use tracing::{error, info};
-use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt::FmtTarget, prelude::*};
 
 #[path = "fmt/yak_shave.rs"]
 mod yak_shave;
 
 fn main() {
-    let registry =
-        tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_target(false));
+    let registry = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_target(FmtTarget::Off));
     match tracing_journald::layer() {
         Ok(layer) => {
             registry.with(layer).init();
