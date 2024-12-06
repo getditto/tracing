@@ -92,6 +92,11 @@ impl<'a> Event<'a> {
         self.fields.field_set().iter()
     }
 
+    /// Returns a reference to the set of values on this `Event`.
+    pub fn field_value_set(&self) -> &field::ValueSet<'_> {
+        self.fields
+    }
+
     /// Returns [metadata] describing this `Event`.
     ///
     /// [metadata]: super::Metadata
