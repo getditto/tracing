@@ -300,7 +300,7 @@ impl Subscriber for Registry {
     fn exit(&self, id: &span::Id) {
         if let Some(spans) = self.current_spans.get() {
             if spans.borrow_mut().pop(id) {
-                self.try_close(id.clone());
+                dispatcher::get_default(|dispatch| dispatch.try_close(id.clone()));
             }
         }
     }
