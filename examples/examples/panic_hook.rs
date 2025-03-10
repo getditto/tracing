@@ -31,14 +31,14 @@ fn main() {
             // `message()` method returning just the message, we could record
             // just the message instead of the entire `fmt::Display`
             // implementation, avoiding the duplicated location
-            tracing::error!(
+            tracing::error_internal!(
                 message = %panic,
                 panic.file = location.file(),
                 panic.line = location.line(),
                 panic.column = location.column(),
             );
         } else {
-            tracing::error!(message = %panic);
+            tracing::error_internal!(message = %panic);
         }
     }));
 

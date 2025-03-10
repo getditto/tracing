@@ -33,7 +33,7 @@ fn bench_new_span(c: &mut Criterion) {
             tracing::dispatcher::with_default(&mk_dispatch(), || {
                 b.iter(|| {
                     for n in 0..i {
-                        let _span = tracing::info_span!("span", n);
+                        let _span = tracing::info_span_internal!("span", n);
                     }
                 })
             });
@@ -47,22 +47,22 @@ fn bench_new_span(c: &mut Criterion) {
                     let elapsed = bench
                         .thread(move || {
                             for n in 0..i {
-                                let _span = tracing::info_span!("span", n);
+                                let _span = tracing::info_span_internal!("span", n);
                             }
                         })
                         .thread(move || {
                             for n in 0..i {
-                                let _span = tracing::info_span!("span", n);
+                                let _span = tracing::info_span_internal!("span", n);
                             }
                         })
                         .thread(move || {
                             for n in 0..i {
-                                let _span = tracing::info_span!("span", n);
+                                let _span = tracing::info_span_internal!("span", n);
                             }
                         })
                         .thread(move || {
                             for n in 0..i {
-                                let _span = tracing::info_span!("span", n);
+                                let _span = tracing::info_span_internal!("span", n);
                             }
                         })
                         .run();
@@ -100,7 +100,7 @@ fn bench_event(c: &mut Criterion) {
             tracing::dispatcher::with_default(&dispatch, || {
                 b.iter(|| {
                     for n in 0..i {
-                        tracing::info!(n);
+                        tracing::info_internal!(n);
                     }
                 })
             });
@@ -114,22 +114,22 @@ fn bench_event(c: &mut Criterion) {
                     let elapsed = bench
                         .thread(move || {
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         })
                         .thread(move || {
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         })
                         .thread(move || {
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         })
                         .thread(move || {
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         })
                         .run();
@@ -143,11 +143,11 @@ fn bench_event(c: &mut Criterion) {
             i,
             |b, &i| {
                 tracing::dispatcher::with_default(&mk_dispatch(), || {
-                    let span = tracing::info_span!("unique_parent", foo = false);
+                    let span = tracing::info_span_internal!("unique_parent", foo = false);
                     let _guard = span.enter();
                     b.iter(|| {
                         for n in 0..i {
-                            tracing::info!(n);
+                            tracing::info_internal!(n);
                         }
                     })
                 });
@@ -164,35 +164,39 @@ fn bench_event(c: &mut Criterion) {
                         let bench = MultithreadedBench::new(dispatch.clone());
                         let elapsed = bench
                             .thread_with_setup(move |start| {
-                                let span = tracing::info_span!("unique_parent", foo = false);
+                                let span =
+                                    tracing::info_span_internal!("unique_parent", foo = false);
                                 let _guard = span.enter();
                                 start.wait();
                                 for n in 0..i {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 }
                             })
                             .thread_with_setup(move |start| {
-                                let span = tracing::info_span!("unique_parent", foo = false);
+                                let span =
+                                    tracing::info_span_internal!("unique_parent", foo = false);
                                 let _guard = span.enter();
                                 start.wait();
                                 for n in 0..i {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 }
                             })
                             .thread_with_setup(move |start| {
-                                let span = tracing::info_span!("unique_parent", foo = false);
+                                let span =
+                                    tracing::info_span_internal!("unique_parent", foo = false);
                                 let _guard = span.enter();
                                 start.wait();
                                 for n in 0..i {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 }
                             })
                             .thread_with_setup(move |start| {
-                                let span = tracing::info_span!("unique_parent", foo = false);
+                                let span =
+                                    tracing::info_span_internal!("unique_parent", foo = false);
                                 let _guard = span.enter();
                                 start.wait();
                                 for n in 0..i {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 }
                             })
                             .run();
@@ -211,7 +215,7 @@ fn bench_event(c: &mut Criterion) {
                     let mut total = Duration::from_secs(0);
                     for _ in 0..iters {
                         let parent = tracing::dispatcher::with_default(&dispatch, || {
-                            tracing::info_span!("shared_parent", foo = "hello world")
+                            tracing::info_span_internal!("shared_parent", foo = "hello world")
                         });
                         let bench = MultithreadedBench::new(dispatch.clone());
                         let parent2 = parent.clone();
@@ -219,7 +223,7 @@ fn bench_event(c: &mut Criterion) {
                             let _guard = parent2.enter();
                             start.wait();
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         });
                         let parent2 = parent.clone();
@@ -227,7 +231,7 @@ fn bench_event(c: &mut Criterion) {
                             let _guard = parent2.enter();
                             start.wait();
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         });
                         let parent2 = parent.clone();
@@ -235,7 +239,7 @@ fn bench_event(c: &mut Criterion) {
                             let _guard = parent2.enter();
                             start.wait();
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         });
                         let parent2 = parent.clone();
@@ -243,7 +247,7 @@ fn bench_event(c: &mut Criterion) {
                             let _guard = parent2.enter();
                             start.wait();
                             for n in 0..i {
-                                tracing::info!(n);
+                                tracing::info_internal!(n);
                             }
                         });
                         let elapsed = bench.run();
@@ -262,18 +266,19 @@ fn bench_event(c: &mut Criterion) {
                     let mut total = Duration::from_secs(0);
                     for _ in 0..iters {
                         let parent = tracing::dispatcher::with_default(&dispatch, || {
-                            tracing::info_span!("multiparent", foo = "hello world")
+                            tracing::info_span_internal!("multiparent", foo = "hello world")
                         });
                         let bench = MultithreadedBench::new(dispatch.clone());
                         let parent2 = parent.clone();
                         bench.thread_with_setup(move |start| {
                             let _guard = parent2.enter();
                             start.wait();
-                            let mut span = tracing::info_span!("parent");
+                            let mut span = tracing::info_span_internal!("parent");
                             for n in 0..i {
-                                let s = tracing::info_span!(parent: &span, "parent2", n, i);
+                                let s =
+                                    tracing::info_span_internal!(parent: &span, "parent2", n, i);
                                 s.in_scope(|| {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 });
                                 span = s;
                             }
@@ -282,11 +287,12 @@ fn bench_event(c: &mut Criterion) {
                         bench.thread_with_setup(move |start| {
                             let _guard = parent2.enter();
                             start.wait();
-                            let mut span = tracing::info_span!("parent");
+                            let mut span = tracing::info_span_internal!("parent");
                             for n in 0..i {
-                                let s = tracing::info_span!(parent: &span, "parent2", n, i);
+                                let s =
+                                    tracing::info_span_internal!(parent: &span, "parent2", n, i);
                                 s.in_scope(|| {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 });
                                 span = s;
                             }
@@ -295,11 +301,12 @@ fn bench_event(c: &mut Criterion) {
                         bench.thread_with_setup(move |start| {
                             let _guard = parent2.enter();
                             start.wait();
-                            let mut span = tracing::info_span!("parent");
+                            let mut span = tracing::info_span_internal!("parent");
                             for n in 0..i {
-                                let s = tracing::info_span!(parent: &span, "parent2", n, i);
+                                let s =
+                                    tracing::info_span_internal!(parent: &span, "parent2", n, i);
                                 s.in_scope(|| {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 });
                                 span = s;
                             }
@@ -308,11 +315,12 @@ fn bench_event(c: &mut Criterion) {
                         bench.thread_with_setup(move |start| {
                             let _guard = parent2.enter();
                             start.wait();
-                            let mut span = tracing::info_span!("parent");
+                            let mut span = tracing::info_span_internal!("parent");
                             for n in 0..i {
-                                let s = tracing::info_span!(parent: &span, "parent2", n, i);
+                                let s =
+                                    tracing::info_span_internal!(parent: &span, "parent2", n, i);
                                 s.in_scope(|| {
-                                    tracing::info!(n);
+                                    tracing::info_internal!(n);
                                 });
                                 span = s;
                             }

@@ -15,7 +15,7 @@ fn init_ext_works() {
         .run_with_handle();
 
     let _guard = subscriber.set_default();
-    tracing::info!(target: "init_works", "it worked!");
+    tracing::info_internal!(target: "init_works", "it worked!");
     finished.assert_finished();
 }
 

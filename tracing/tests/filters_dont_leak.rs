@@ -6,7 +6,7 @@ use tracing_mock::*;
 #[test]
 fn spans_dont_leak() {
     fn do_span() {
-        let span = tracing::debug_span!("alice");
+        let span = tracing::debug_span_internal!("alice");
         let _e = span.enter();
     }
 
@@ -47,7 +47,7 @@ fn spans_dont_leak() {
 #[test]
 fn events_dont_leak() {
     fn do_event() {
-        tracing::debug!("alice");
+        tracing::debug_internal!("alice");
     }
 
     let (subscriber, handle) = subscriber::mock()

@@ -21,7 +21,7 @@ fn box_works() {
     let _guard = tracing_subscriber::registry().with(layer).set_default();
 
     for i in 0..2 {
-        tracing::info!(i);
+        tracing::info_internal!(i);
     }
 
     handle.assert_finished();
@@ -36,7 +36,7 @@ fn dyn_box_works() {
     let _guard = tracing_subscriber::registry().with(layer).set_default();
 
     for i in 0..2 {
-        tracing::info!(i);
+        tracing::info_internal!(i);
     }
 
     handle.assert_finished();

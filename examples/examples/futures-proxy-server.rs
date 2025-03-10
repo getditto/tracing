@@ -32,7 +32,9 @@ use tokio::{
     self, io,
     net::{TcpListener, TcpStream},
 };
-use tracing::{debug, debug_span, info, instrument, warn, Instrument as _};
+use tracing::{
+    debug_internal, debug_span_internal, info_internal, instrument, warn_internal, Instrument as _,
+};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -45,27 +47,27 @@ async fn transfer(mut inbound: TcpStream, proxy_addr: SocketAddr) -> Result<(), 
 
     let client_to_server = io::copy(&mut ri, &mut wo)
         .map_ok(|bytes_copied| {
-            info!(bytes_copied);
+            info_internal!(bytes_copied);
             bytes_copied
         })
         .map_err(|error| {
-            warn!(%error);
+            warn_internal!(%error);
             error
         })
-        .instrument(debug_span!("client_to_server"));
+        .instrument(debug_span_internal!("client_to_server"));
     let server_to_client = io::copy(&mut ro, &mut wi)
         .map_ok(|bytes_copied| {
-            info!(bytes_copied);
+            info_internal!(bytes_copied);
             bytes_copied
         })
         .map_err(|error| {
-            warn!(%error);
+            warn_internal!(%error);
             error
         })
-        .instrument(debug_span!("server_to_client"));
+        .instrument(debug_span_internal!("server_to_client"));
 
     let (client_to_server, server_to_client) = try_join(client_to_server, server_to_client).await?;
-    info!(client_to_server, server_to_client, "transfer completed",);
+    info_internal!(client_to_server, server_to_client, "transfer completed",);
 
     Ok(())
 }
@@ -107,16 +109,16 @@ async fn main() -> Result<(), Error> {
 
     let listener = TcpListener::bind(&args.listen_addr).await?;
 
-    info!("Listening on: {}", args.listen_addr);
-    info!("Proxying to: {}", args.server_addr);
+    info_internal!("Listening on: {}", args.listen_addr);
+    info_internal!("Proxying to: {}", args.server_addr);
 
     while let Ok((inbound, client_addr)) = listener.accept().await {
-        info!(client.addr = %client_addr, "client connected");
+        info_internal!(client.addr = %client_addr, "client connected");
 
         let transfer = transfer(inbound, args.server_addr).map(|r| {
             if let Err(err) = r {
                 // Don't panic, maybe the client just disconnected too soon
-                debug!(error = %err);
+                debug_internal!(error = %err);
             }
         });
 

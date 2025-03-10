@@ -2,7 +2,7 @@
 mod app {
     use std::collections::HashMap;
     use tracing::field::valuable;
-    use tracing::{info, instrument};
+    use tracing::{info_internal, instrument};
     use valuable::Valuable;
 
     #[derive(Valuable)]

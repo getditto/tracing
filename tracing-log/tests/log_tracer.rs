@@ -109,7 +109,7 @@ fn normalized_metadata() {
             }),
         );
 
-        tracing::info!("test with a tracing info");
+        tracing::info_internal!("test with a tracing info");
         last(&state, false, None);
     })
 }

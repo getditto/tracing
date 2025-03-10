@@ -140,15 +140,15 @@ mod registry_tests {
                 last_event_span: last_event_span.clone(),
             }),
             || {
-                tracing::info!("no span");
+                tracing::info_internal!("no span");
                 assert_eq!(*last_event_span.lock().unwrap(), None);
 
-                let parent = tracing::info_span!("explicit");
-                tracing::info!(parent: &parent, "explicit span");
+                let parent = tracing::info_span_internal!("explicit");
+                tracing::info_internal!(parent: &parent, "explicit span");
                 assert_eq!(*last_event_span.lock().unwrap(), Some("explicit"));
 
-                let _guard = tracing::info_span!("contextual").entered();
-                tracing::info!("contextual span");
+                let _guard = tracing::info_span_internal!("contextual").entered();
+                tracing::info_internal!("contextual span");
                 assert_eq!(*last_event_span.lock().unwrap(), Some("contextual"));
             },
         );

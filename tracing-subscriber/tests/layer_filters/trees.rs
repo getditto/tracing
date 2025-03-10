@@ -55,10 +55,10 @@ fn basic_trees() {
     let subscriber = tracing_subscriber::registry().with(info_tree).with(all);
     let _guard = dbg!(subscriber).set_default();
 
-    tracing::info!("hello world");
-    tracing::trace!("hello trace");
-    tracing::info!(target: "my_target", "hi to my target");
-    tracing::trace!(target: "my_target", "hi to my target at trace");
+    tracing::info_internal!("hello world");
+    tracing::trace_internal!("hello trace");
+    tracing::info_internal!(target: "my_target", "hi to my target");
+    tracing::trace_internal!(target: "my_target", "hi to my target at trace");
 
     all_handle.assert_finished();
     info_handle.assert_finished();
@@ -142,13 +142,13 @@ fn filter_span_scopes() {
     let _guard = dbg!(subscriber).set_default();
 
     {
-        let _a1 = tracing::trace_span!(target: "a", "a/trace").entered();
-        let _b1 = tracing::info_span!(target: "b", "b/info").entered();
-        let _a2 = tracing::info_span!(target: "a", "a/info").entered();
-        let _b2 = tracing::trace_span!(target: "b", "b/trace").entered();
-        tracing::info!("hello world");
-        tracing::debug!(target: "a", "hello to my target");
-        tracing::debug!(target: "b", "hello to my target");
+        let _a1 = tracing::trace_span_internal!(target: "a", "a/trace").entered();
+        let _b1 = tracing::info_span_internal!(target: "b", "b/info").entered();
+        let _a2 = tracing::info_span_internal!(target: "a", "a/info").entered();
+        let _b2 = tracing::trace_span_internal!(target: "b", "b/trace").entered();
+        tracing::info_internal!("hello world");
+        tracing::debug_internal!(target: "a", "hello to my target");
+        tracing::debug_internal!(target: "b", "hello to my target");
     }
 
     all_handle.assert_finished();

@@ -1,5 +1,5 @@
 #![deny(rust_2018_idioms)]
-use tracing::{error, info};
+use tracing::{error_internal, info_internal};
 use tracing_subscriber::prelude::*;
 
 #[path = "fmt/yak_shave.rs"]
@@ -16,16 +16,16 @@ fn main() {
         // should handle its absence gracefully.
         Err(e) => {
             registry.init();
-            error!("couldn't connect to journald: {}", e);
+            error_internal!("couldn't connect to journald: {}", e);
         }
     }
 
     let number_of_yaks = 3;
     // this creates a new event, outside of any spans.
-    info!(number_of_yaks, "preparing to shave yaks");
+    info_internal!(number_of_yaks, "preparing to shave yaks");
 
     let number_shaved = yak_shave::shave_all(number_of_yaks);
-    info!(
+    info_internal!(
         all_yaks_shaved = number_shaved == number_of_yaks,
         "yak shaving completed."
     );

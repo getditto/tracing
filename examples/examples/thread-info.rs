@@ -19,7 +19,7 @@
 /// ```
 use std::thread;
 use std::time::Duration;
-use tracing::info;
+use tracing::info_internal;
 
 fn main() {
     tracing_subscriber::fmt()
@@ -32,7 +32,7 @@ fn main() {
 
     let do_work = || {
         for i in 1..10 {
-            info!(i);
+            info_internal!(i);
             thread::sleep(Duration::from_millis(1));
         }
     };

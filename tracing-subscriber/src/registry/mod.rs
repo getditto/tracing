@@ -546,11 +546,11 @@ mod tests {
             last_entered_scope: last_entered_scope.clone(),
         }));
 
-        let _root = tracing::info_span!("root").entered();
+        let _root = tracing::info_span_internal!("root").entered();
         assert_eq!(&*last_entered_scope.lock().unwrap(), &["root"]);
-        let _child = tracing::info_span!("child").entered();
+        let _child = tracing::info_span_internal!("child").entered();
         assert_eq!(&*last_entered_scope.lock().unwrap(), &["child", "root"]);
-        let _leaf = tracing::info_span!("leaf").entered();
+        let _leaf = tracing::info_span_internal!("leaf").entered();
         assert_eq!(
             &*last_entered_scope.lock().unwrap(),
             &["leaf", "child", "root"]
@@ -585,11 +585,11 @@ mod tests {
             last_entered_scope: last_entered_scope.clone(),
         }));
 
-        let _root = tracing::info_span!("root").entered();
+        let _root = tracing::info_span_internal!("root").entered();
         assert_eq!(&*last_entered_scope.lock().unwrap(), &["root"]);
-        let _child = tracing::info_span!("child").entered();
+        let _child = tracing::info_span_internal!("child").entered();
         assert_eq!(&*last_entered_scope.lock().unwrap(), &["root", "child",]);
-        let _leaf = tracing::info_span!("leaf").entered();
+        let _leaf = tracing::info_span_internal!("leaf").entered();
         assert_eq!(
             &*last_entered_scope.lock().unwrap(),
             &["root", "child", "leaf"]

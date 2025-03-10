@@ -53,8 +53,8 @@ fn inner_layer_short_circuits() {
         .with(layer.with_filter(filter))
         .set_default();
 
-    tracing::debug!("skip me please!");
-    tracing::info!(target: "magic_target", "hello world");
+    tracing::debug_internal!("skip me please!");
+    tracing::info_internal!(target: "magic_target", "hello world");
 
     handle.assert_finished();
 }

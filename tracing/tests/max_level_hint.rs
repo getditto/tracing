@@ -28,10 +28,10 @@ fn max_level_hints() {
 
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    tracing::info!("doing a thing that you might care about");
-    tracing::debug!("charging turboencabulator with interocitor");
-    tracing::warn!("extremely serious warning, pay attention");
-    tracing::trace!("interocitor charge level is 10%");
-    tracing::error!("everything is on fire");
+    tracing::info_internal!("doing a thing that you might care about");
+    tracing::debug_internal!("charging turboencabulator with interocitor");
+    tracing::warn_internal!("extremely serious warning, pay attention");
+    tracing::trace_internal!("interocitor charge level is 10%");
+    tracing::error_internal!("everything is on fire");
     handle.assert_finished();
 }

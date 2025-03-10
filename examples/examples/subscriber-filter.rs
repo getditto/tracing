@@ -11,11 +11,11 @@ fn main() {
 
     tracing::subscriber::with_default(subscriber, || {
         let number_of_yaks = 3;
-        tracing::debug!("preparing to shave {} yaks", number_of_yaks);
+        tracing::debug_internal!("preparing to shave {} yaks", number_of_yaks);
 
         let number_shaved = yak_shave::shave_all(number_of_yaks);
 
-        tracing::debug!(
+        tracing::debug_internal!(
             message = "yak shaving completed.",
             all_yaks_shaved = number_shaved == number_of_yaks,
         );

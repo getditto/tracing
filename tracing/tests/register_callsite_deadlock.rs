@@ -12,7 +12,7 @@ fn register_callsite_doesnt_deadlock() {
 
     impl Subscriber for EvilSubscriber {
         fn register_callsite(&self, meta: &'static Metadata<'static>) -> Interest {
-            tracing::info!(?meta, "registered a callsite");
+            tracing::info_internal!(?meta, "registered a callsite");
             Interest::always()
         }
 
@@ -34,7 +34,7 @@ fn register_callsite_doesnt_deadlock() {
     // spawn a thread, and assert it doesn't hang...
     let (tx, didnt_hang) = mpsc::channel();
     let th = thread::spawn(move || {
-        tracing::info!("hello world!");
+        tracing::info_internal!("hello world!");
         tx.send(()).unwrap();
     });
 

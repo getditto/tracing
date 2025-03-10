@@ -1834,7 +1834,7 @@ pub(super) mod test {
         ))
         .unwrap();
         let _default = set_default(&subscriber.into());
-        tracing::info!("hello");
+        tracing::info_internal!("hello");
         let res = make_writer.get_string();
         assert!(expected.is_match(&res));
     }
@@ -1853,7 +1853,7 @@ pub(super) mod test {
             Regex::new("^fake time tracing_subscriber::fmt::format::test: [0-9]+: hello\n$")
                 .unwrap();
         let _default = set_default(&subscriber.into());
-        tracing::info!("hello");
+        tracing::info_internal!("hello");
         let res = make_writer.get_string();
         assert!(expected.is_match(&res));
     }
@@ -1909,7 +1909,7 @@ pub(super) mod test {
 
     fn assert_info_hello(subscriber: impl Into<Dispatch>, buf: MockMakeWriter, expected: &str) {
         let _default = set_default(&subscriber.into());
-        tracing::info!("hello");
+        tracing::info_internal!("hello");
         let result = buf.get_string();
 
         assert_eq!(expected, result)
@@ -1923,7 +1923,7 @@ pub(super) mod test {
         expected: &str,
     ) {
         let _default = set_default(&subscriber.into());
-        tracing::info!("hello");
+        tracing::info_internal!("hello");
 
         let regex = Regex::new("[0-9]+").unwrap();
         let result = buf.get_string();
@@ -1948,9 +1948,9 @@ pub(super) mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", span = 1);
-            let span2 = tracing::info_span!(parent: &span1, "span2", span = 2);
-            tracing::info!(parent: &span2, "hello");
+            let span1 = tracing::info_span_internal!("span1", span = 1);
+            let span2 = tracing::info_span_internal!(parent: &span1, "span2", span = 2);
+            tracing::info_internal!(parent: &span2, "hello");
         });
         assert_eq!(expected, make_writer.get_string());
     }
@@ -1972,22 +1972,22 @@ pub(super) mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", span = 1);
-            let span2 = tracing::info_span!(parent: &span1, "span2", span = 2);
-            let span3 = tracing::info_span!("span3", span = 3);
+            let span1 = tracing::info_span_internal!("span1", span = 1);
+            let span2 = tracing::info_span_internal!(parent: &span1, "span2", span = 2);
+            let span3 = tracing::info_span_internal!("span3", span = 3);
             let _e3 = span3.enter();
 
-            tracing::info!("hello");
+            tracing::info_internal!("hello");
             assert_eq!(expected1, make_writer.get_string().as_str());
 
-            tracing::info!(parent: &span2, "hello");
+            tracing::info_internal!(parent: &span2, "hello");
             assert_eq!(expected2, make_writer.get_string().as_str());
         });
     }
 
     fn run_test(subscriber: impl Into<Dispatch>, buf: MockMakeWriter, expected: &str) {
         let _default = set_default(&subscriber.into());
-        tracing::info!("hello");
+        tracing::info_internal!("hello");
         assert_eq!(expected, buf.get_string())
     }
 

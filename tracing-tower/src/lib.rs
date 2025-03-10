@@ -48,7 +48,7 @@ where
         Request: fmt::Debug,
     {
         let req_span: fn(&Request) -> tracing::Span =
-            |request| tracing::span!(Level::TRACE, "request", ?request);
+            |request| tracing::span_internal!(Level::TRACE, "request", ?request);
         let svc_span = svc_span.span_for(&self);
         self.trace_requests(req_span).trace_service(svc_span)
     }

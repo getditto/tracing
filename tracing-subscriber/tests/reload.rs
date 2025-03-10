@@ -9,7 +9,7 @@ use tracing_subscriber::{layer, prelude::*, reload::*};
 
 pub struct NopSubscriber;
 fn event() {
-    tracing::info!("my event");
+    tracing::info_internal!("my event");
 }
 
 impl Subscriber for NopSubscriber {

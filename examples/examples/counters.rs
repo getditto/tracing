@@ -1,18 +1,21 @@
 #![deny(rust_2018_idioms)]
 
 use tracing::{
+    Event, Id, Level, Metadata,
     field::{Field, Visit},
-    info, span,
+    info_internal,
+    span::{self},
+    span_internal,
     subscriber::{self, Subscriber},
-    warn, Event, Id, Level, Metadata,
+    warn_internal,
 };
 
 use std::{
     collections::HashMap,
     fmt,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, RwLock, RwLockReadGuard,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -125,17 +128,17 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let mut foo: u64 = 2;
-    span!(Level::TRACE, "my_great_span", foo_count = &foo).in_scope(|| {
+    span_internal!(Level::TRACE, "my_great_span", foo_count = &foo).in_scope(|| {
         foo += 1;
-        info!(yak_shaved = true, yak_count = 1, "hi from inside my span");
-        span!(
+        info_internal!(yak_shaved = true, yak_count = 1, "hi from inside my span");
+        span_internal!(
             Level::TRACE,
             "my other span",
             foo_count = &foo,
             baz_count = 5
         )
         .in_scope(|| {
-            warn!(yak_shaved = false, yak_count = -1, "failed to shave yak");
+            warn_internal!(yak_shaved = false, yak_count = -1, "failed to shave yak");
         });
     });
 

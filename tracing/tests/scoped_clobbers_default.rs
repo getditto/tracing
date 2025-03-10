@@ -18,17 +18,17 @@ fn scoped_clobbers_global() {
 
     // Set a scoped default subscriber, returning a guard.
     let guard = tracing::subscriber::set_default(scoped);
-    tracing::info!("before global");
+    tracing::info_internal!("before global");
 
     // Now, set the global default.
     tracing::subscriber::set_global_default(global)
         .expect("global default should not already be set");
     // This event should still be collected by the scoped default.
-    tracing::info!("before drop");
+    tracing::info_internal!("before drop");
 
     // Drop the guard. Now, the global default subscriber should be used.
     drop(guard);
-    tracing::info!("after drop");
+    tracing::info_internal!("after drop");
 
     scoped_handle.assert_finished();
     global_handle.assert_finished();
