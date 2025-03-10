@@ -47,9 +47,9 @@ fn filters_are_reevaluated_for_different_call_sites() {
 
     // Enter "charlie" and then "dave". The dispatcher expects to see "dave" but
     // not "charlie."
-    let charlie = span!(Level::TRACE, "charlie");
+    let charlie = span_internal!(Level::TRACE, "charlie");
     let dave = charlie.in_scope(|| {
-        let dave = span!(Level::TRACE, "dave");
+        let dave = span_internal!(Level::TRACE, "dave");
         dave.in_scope(|| {});
         dave
     });
@@ -67,14 +67,14 @@ fn filters_are_reevaluated_for_different_call_sites() {
 
     // A different span with the same name has a different call site, so it
     // should cause the filter to be reapplied.
-    let charlie2 = span!(Level::TRACE, "charlie");
+    let charlie2 = span_internal!(Level::TRACE, "charlie");
     charlie.in_scope(|| {});
     assert_eq!(charlie_count.load(Ordering::Relaxed), 2);
     assert_eq!(dave_count.load(Ordering::Relaxed), 1);
 
     // But, the filter should not be re-evaluated for the new "charlie" span
     // when it is re-entered.
-    charlie2.in_scope(|| span!(Level::TRACE, "dave").in_scope(|| {}));
+    charlie2.in_scope(|| span_internal!(Level::TRACE, "dave").in_scope(|| {}));
     assert_eq!(charlie_count.load(Ordering::Relaxed), 2);
     assert_eq!(dave_count.load(Ordering::Relaxed), 2);
 }

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use tracing::{debug, error, info, info_span, warn};
+use tracing::{debug_internal, error_internal, info_internal, info_span_internal, warn_internal};
 use tracing_journald::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;

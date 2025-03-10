@@ -22,11 +22,11 @@ fn level_filter_event() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        tracing::debug!(target: "foo", "this should also be disabled");
-        tracing::warn!(target: "foo", "this should be enabled");
-        tracing::error!("this should be enabled too");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        tracing::debug_internal!(target: "foo", "this should also be disabled");
+        tracing::warn_internal!(target: "foo", "this should be enabled");
+        tracing::error_internal!("this should be enabled too");
     });
 
     finished.assert_finished();
@@ -54,8 +54,8 @@ fn same_name_spans() {
         .run_with_handle();
     let subscriber = subscriber.with(filter);
     with_default(subscriber, || {
-        tracing::trace_span!("foo", bar = 1);
-        tracing::trace_span!("foo", baz = 1);
+        tracing::trace_span_internal!("foo", bar = 1);
+        tracing::trace_span_internal!("foo", baz = 1);
     });
 
     finished.assert_finished();
@@ -75,14 +75,14 @@ fn level_filter_event_with_target() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        tracing::debug!(target: "stuff", "this should be enabled");
-        tracing::debug!("but this shouldn't");
-        tracing::trace!(target: "stuff", "and neither should this");
-        tracing::warn!(target: "stuff", "this should be enabled");
-        tracing::error!("this should be enabled too");
-        tracing::error!(target: "stuff", "this should be enabled also");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        tracing::debug_internal!(target: "stuff", "this should be enabled");
+        tracing::debug_internal!("but this shouldn't");
+        tracing::trace_internal!(target: "stuff", "and neither should this");
+        tracing::warn_internal!(target: "stuff", "this should be enabled");
+        tracing::error_internal!("this should be enabled too");
+        tracing::error_internal!(target: "stuff", "this should be enabled also");
     });
 
     finished.assert_finished();
@@ -113,15 +113,15 @@ fn level_filter_event_with_target_and_span_global() {
 
     with_default(subscriber, || {
         {
-            let _span = tracing::info_span!(target: "stuff", "cool_span").entered();
-            tracing::debug!("this should be enabled");
+            let _span = tracing::info_span_internal!(target: "stuff", "cool_span").entered();
+            tracing::debug_internal!("this should be enabled");
         }
 
-        tracing::debug!("should also be disabled");
+        tracing::debug_internal!("should also be disabled");
 
         {
-            let _span = tracing::info_span!("uncool_span").entered();
-            tracing::debug!("this should be disabled");
+            let _span = tracing::info_span_internal!("uncool_span").entered();
+            tracing::debug_internal!("this should be disabled");
         }
     });
 
@@ -144,14 +144,14 @@ fn not_order_dependent() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        tracing::debug!(target: "stuff", "this should be enabled");
-        tracing::debug!("but this shouldn't");
-        tracing::trace!(target: "stuff", "and neither should this");
-        tracing::warn!(target: "stuff", "this should be enabled");
-        tracing::error!("this should be enabled too");
-        tracing::error!(target: "stuff", "this should be enabled also");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        tracing::debug_internal!(target: "stuff", "this should be enabled");
+        tracing::debug_internal!("but this shouldn't");
+        tracing::trace_internal!(target: "stuff", "and neither should this");
+        tracing::warn_internal!(target: "stuff", "this should be enabled");
+        tracing::error_internal!("this should be enabled too");
+        tracing::error_internal!(target: "stuff", "this should be enabled also");
     });
 
     finished.assert_finished();
@@ -175,8 +175,8 @@ fn add_directive_enables_event() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::info!(target: "hello", "hello info");
-        tracing::trace!(target: "hello", "hello trace");
+        tracing::info_internal!(target: "hello", "hello info");
+        tracing::trace_internal!(target: "hello", "hello trace");
     });
 
     finished.assert_finished();
@@ -205,24 +205,24 @@ fn span_name_filter_is_dynamic() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        let cool_span = tracing::info_span!("cool_span");
-        let uncool_span = tracing::info_span!("uncool_span");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        let cool_span = tracing::info_span_internal!("cool_span");
+        let uncool_span = tracing::info_span_internal!("uncool_span");
 
         {
             let _enter = cool_span.enter();
-            tracing::debug!("i'm a cool event");
-            tracing::trace!("i'm cool, but not cool enough");
+            tracing::debug_internal!("i'm a cool event");
+            tracing::trace_internal!("i'm cool, but not cool enough");
             let _enter2 = uncool_span.enter();
-            tracing::warn!("warning: extremely cool!");
-            tracing::debug!("i'm still cool");
+            tracing::warn_internal!("warning: extremely cool!");
+            tracing::debug_internal!("i'm still cool");
         }
 
         let _enter = uncool_span.enter();
-        tracing::warn!("warning: not that cool");
-        tracing::trace!("im not cool enough");
-        tracing::error!("uncool error");
+        tracing::warn_internal!("warning: not that cool");
+        tracing::trace_internal!("im not cool enough");
+        tracing::error_internal!("uncool error");
     });
 
     finished.assert_finished();
@@ -256,11 +256,11 @@ mod per_layer_filter {
             .with(layer.with_filter(filter))
             .set_default();
 
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        tracing::debug!(target: "foo", "this should also be disabled");
-        tracing::warn!(target: "foo", "this should be enabled");
-        tracing::error!("this should be enabled too");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        tracing::debug_internal!(target: "foo", "this should also be disabled");
+        tracing::warn_internal!(target: "foo", "this should be enabled");
+        tracing::error_internal!("this should be enabled too");
 
         handle.assert_finished();
     }
@@ -290,8 +290,8 @@ mod per_layer_filter {
             .with(layer.with_filter(filter))
             .set_default();
 
-        tracing::trace_span!("foo", bar = 1);
-        tracing::trace_span!("foo", baz = 1);
+        tracing::trace_span_internal!("foo", bar = 1);
+        tracing::trace_span_internal!("foo", baz = 1);
 
         handle.assert_finished();
     }
@@ -312,14 +312,14 @@ mod per_layer_filter {
             .with(layer.with_filter(filter))
             .set_default();
 
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        tracing::debug!(target: "stuff", "this should be enabled");
-        tracing::debug!("but this shouldn't");
-        tracing::trace!(target: "stuff", "and neither should this");
-        tracing::warn!(target: "stuff", "this should be enabled");
-        tracing::error!("this should be enabled too");
-        tracing::error!(target: "stuff", "this should be enabled also");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        tracing::debug_internal!(target: "stuff", "this should be enabled");
+        tracing::debug_internal!("but this shouldn't");
+        tracing::trace_internal!(target: "stuff", "and neither should this");
+        tracing::warn_internal!(target: "stuff", "this should be enabled");
+        tracing::error_internal!("this should be enabled too");
+        tracing::error_internal!(target: "stuff", "this should be enabled also");
 
         handle.assert_finished();
     }
@@ -347,15 +347,15 @@ mod per_layer_filter {
             .set_default();
 
         {
-            let _span = tracing::info_span!(target: "stuff", "cool_span").entered();
-            tracing::debug!("this should be enabled");
+            let _span = tracing::info_span_internal!(target: "stuff", "cool_span").entered();
+            tracing::debug_internal!("this should be enabled");
         }
 
-        tracing::debug!("should also be disabled");
+        tracing::debug_internal!("should also be disabled");
 
         {
-            let _span = tracing::info_span!("uncool_span").entered();
-            tracing::debug!("this should be disabled");
+            let _span = tracing::info_span_internal!("uncool_span").entered();
+            tracing::debug_internal!("this should be disabled");
         }
 
         handle.assert_finished();
@@ -379,14 +379,14 @@ mod per_layer_filter {
             .with(layer.with_filter(filter))
             .set_default();
 
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        tracing::debug!(target: "stuff", "this should be enabled");
-        tracing::debug!("but this shouldn't");
-        tracing::trace!(target: "stuff", "and neither should this");
-        tracing::warn!(target: "stuff", "this should be enabled");
-        tracing::error!("this should be enabled too");
-        tracing::error!(target: "stuff", "this should be enabled also");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        tracing::debug_internal!(target: "stuff", "this should be enabled");
+        tracing::debug_internal!("but this shouldn't");
+        tracing::trace_internal!(target: "stuff", "and neither should this");
+        tracing::warn_internal!(target: "stuff", "this should be enabled");
+        tracing::error_internal!("this should be enabled too");
+        tracing::error_internal!(target: "stuff", "this should be enabled also");
 
         finished.assert_finished();
     }
@@ -411,8 +411,8 @@ mod per_layer_filter {
             .with(layer.with_filter(filter))
             .set_default();
 
-        tracing::info!(target: "hello", "hello info");
-        tracing::trace!(target: "hello", "hello trace");
+        tracing::info_internal!(target: "hello", "hello info");
+        tracing::trace_internal!(target: "hello", "hello trace");
 
         finished.assert_finished();
     }
@@ -464,25 +464,25 @@ mod per_layer_filter {
             .with(layer.with_filter(filter))
             .set_default();
 
-        tracing::trace!("this should be disabled");
-        tracing::info!("this shouldn't be");
-        let cool_span = tracing::info_span!("cool_span");
-        let uncool_span = tracing::info_span!("uncool_span");
+        tracing::trace_internal!("this should be disabled");
+        tracing::info_internal!("this shouldn't be");
+        let cool_span = tracing::info_span_internal!("cool_span");
+        let uncool_span = tracing::info_span_internal!("uncool_span");
 
         {
             let _enter = cool_span.enter();
-            tracing::debug!("i'm a cool event");
-            tracing::trace!("i'm cool, but not cool enough");
+            tracing::debug_internal!("i'm a cool event");
+            tracing::trace_internal!("i'm cool, but not cool enough");
             let _enter2 = uncool_span.enter();
-            tracing::warn!("warning: extremely cool!");
-            tracing::debug!("i'm still cool");
+            tracing::warn_internal!("warning: extremely cool!");
+            tracing::debug_internal!("i'm still cool");
         }
 
         {
             let _enter = uncool_span.enter();
-            tracing::warn!("warning: not that cool");
-            tracing::trace!("im not cool enough");
-            tracing::error!("uncool error");
+            tracing::warn_internal!("warning: not that cool");
+            tracing::trace_internal!("im not cool enough");
+            tracing::error_internal!("uncool error");
         }
 
         finished.assert_finished();
@@ -529,14 +529,14 @@ mod per_layer_filter {
             .with(layer2)
             .set_default();
 
-        tracing::info_span!("span1").in_scope(|| {
-            tracing::debug!("hello from span 1");
-            tracing::trace!("not enabled");
+        tracing::info_span_internal!("span1").in_scope(|| {
+            tracing::debug_internal!("hello from span 1");
+            tracing::trace_internal!("not enabled");
         });
 
-        tracing::info_span!("span2").in_scope(|| {
-            tracing::info!("hello from span 2");
-            tracing::debug!("not enabled");
+        tracing::info_span_internal!("span2").in_scope(|| {
+            tracing::info_internal!("hello from span 2");
+            tracing::debug_internal!("not enabled");
         });
 
         handle1.assert_finished();

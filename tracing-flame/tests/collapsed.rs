@@ -19,17 +19,17 @@ fn capture_supported() {
         tracing::subscriber::set_global_default(subscriber).expect("Could not set global default");
 
         {
-            let span = span!(Level::ERROR, "outer");
+            let span = span_internal!(Level::ERROR, "outer");
             let _guard = span.enter();
             sleep(Duration::from_millis(10));
 
             {
-                let span = span!(Level::ERROR, "Inner");
+                let span = span_internal!(Level::ERROR, "Inner");
                 let _guard = span.enter();
                 sleep(Duration::from_millis(50));
 
                 {
-                    let span = span!(Level::ERROR, "Innermost");
+                    let span = span_internal!(Level::ERROR, "Innermost");
                     let _guard = span.enter();
                     sleep(Duration::from_millis(50));
                 }

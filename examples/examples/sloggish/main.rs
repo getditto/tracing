@@ -12,7 +12,7 @@
 //! [`slog` README]: https://github.com/slog-rs/slog#terminal-output-example
 #![deny(rust_2018_idioms)]
 
-use tracing::{debug, info, span, warn, Level};
+use tracing::{debug_internal, info_internal, span, warn_internal, Level};
 
 mod sloggish_subscriber;
 use self::sloggish_subscriber::SloggishSubscriber;
@@ -21,32 +21,32 @@ fn main() {
     let subscriber = SloggishSubscriber::new(2);
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    let app_span = span!(Level::TRACE, "", version = %5.0);
+    let app_span = span_internal!(Level::TRACE, "", version = %5.0);
     let _e = app_span.enter();
 
-    let server_span = span!(Level::TRACE, "server", host = "localhost", port = 8080);
+    let server_span = span_internal!(Level::TRACE, "server", host = "localhost", port = 8080);
     let _e2 = server_span.enter();
-    info!("starting");
-    info!("listening");
-    let peer1 = span!(Level::TRACE, "conn", peer_addr = "82.9.9.9", port = 42381);
+    info_internal!("starting");
+    info_internal!("listening");
+    let peer1 = span_internal!(Level::TRACE, "conn", peer_addr = "82.9.9.9", port = 42381);
     peer1.in_scope(|| {
-        debug!("connected");
-        debug!(length = 2, "message received");
+        debug_internal!("connected");
+        debug_internal!(length = 2, "message received");
     });
-    let peer2 = span!(Level::TRACE, "conn", peer_addr = "8.8.8.8", port = 18230);
+    let peer2 = span_internal!(Level::TRACE, "conn", peer_addr = "8.8.8.8", port = 18230);
     peer2.in_scope(|| {
-        debug!("connected");
+        debug_internal!("connected");
     });
     peer1.in_scope(|| {
-        warn!(algo = "xor", "weak encryption requested");
-        debug!(length = 8, "response sent");
-        debug!("disconnected");
+        warn_internal!(algo = "xor", "weak encryption requested");
+        debug_internal!(length = 8, "response sent");
+        debug_internal!("disconnected");
     });
     peer2.in_scope(|| {
-        debug!(length = 5, "message received");
-        debug!(length = 8, "response sent");
-        debug!("disconnected");
+        debug_internal!(length = 5, "message received");
+        debug_internal!(length = 8, "response sent");
+        debug_internal!("disconnected");
     });
-    warn!("internal error");
-    info!("exit");
+    warn_internal!("internal error");
+    info_internal!("exit");
 }

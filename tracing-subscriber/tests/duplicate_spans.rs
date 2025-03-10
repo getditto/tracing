@@ -9,11 +9,11 @@ fn duplicate_spans() {
         .finish();
 
     with_default(subscriber, || {
-        let root = tracing::debug_span!("root");
+        let root = tracing::debug_span_internal!("root");
         root.in_scope(|| {
             // root:
             assert_eq!(root, Span::current(), "Current span must be 'root'");
-            let leaf = tracing::debug_span!("leaf");
+            let leaf = tracing::debug_span_internal!("leaf");
             leaf.in_scope(|| {
                 // root:leaf:
                 assert_eq!(leaf, Span::current(), "Current span must be 'leaf'");

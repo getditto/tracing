@@ -8,9 +8,9 @@ fn main() {
         // sets this to be the default, global subscriber for this application.
         .init();
 
-    tracing::error!("SOMETHING IS SERIOUSLY WRONG!!!");
-    tracing::warn!("important informational messages; might indicate an error");
-    tracing::info!("general informational messages relevant to users");
-    tracing::debug!("diagnostics used for internal debugging of a library or application");
-    tracing::trace!("very verbose diagnostic events");
+    tracing::error_internal!("SOMETHING IS SERIOUSLY WRONG!!!");
+    tracing::warn_internal!("important informational messages; might indicate an error");
+    tracing::info_internal!("general informational messages relevant to users");
+    tracing::debug_internal!("diagnostics used for internal debugging of a library or application");
+    tracing::trace_internal!("very verbose diagnostic events");
 }

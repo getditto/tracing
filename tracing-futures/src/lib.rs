@@ -646,7 +646,7 @@ mod tests {
                 .run_with_handle();
             with_default(subscriber, || {
                 PollN::new_ok(2)
-                    .instrument(tracing::trace_span!("foo"))
+                    .instrument(tracing::trace_span_internal!("foo"))
                     .wait()
                     .unwrap();
             });
@@ -667,7 +667,7 @@ mod tests {
                 .run_with_handle();
             with_default(subscriber, || {
                 PollN::new_err(2)
-                    .instrument(tracing::trace_span!("foo"))
+                    .instrument(tracing::trace_span_internal!("foo"))
                     .wait()
                     .unwrap_err();
             });
@@ -692,7 +692,7 @@ mod tests {
                 .run_with_handle();
             with_default(subscriber, || {
                 stream::iter_ok::<_, ()>(&[1, 2, 3])
-                    .instrument(tracing::trace_span!("foo"))
+                    .instrument(tracing::trace_span_internal!("foo"))
                     .for_each(|_| future::ok(()))
                     .wait()
                     .unwrap();
@@ -752,10 +752,13 @@ mod tests {
                 .drop_span(expect::span().named("foo"))
                 .run_with_handle();
             with_default(subscriber, || {
-                Instrument::instrument(stream::iter(&[1, 2, 3]), tracing::trace_span!("foo"))
-                    .for_each(|_| future::ready(()))
-                    .now_or_never()
-                    .unwrap();
+                Instrument::instrument(
+                    stream::iter(&[1, 2, 3]),
+                    tracing::trace_span_internal!("foo"),
+                )
+                .for_each(|_| future::ready(()))
+                .now_or_never()
+                .unwrap();
             });
             handle.assert_finished();
         }
@@ -772,7 +775,7 @@ mod tests {
                 .drop_span(expect::span().named("foo"))
                 .run_with_handle();
             with_default(subscriber, || {
-                Instrument::instrument(sink::drain(), tracing::trace_span!("foo"))
+                Instrument::instrument(sink::drain(), tracing::trace_span_internal!("foo"))
                     .send(1u8)
                     .now_or_never()
                     .unwrap()

@@ -42,7 +42,8 @@ use std::{
 use tokio::{time, try_join};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::{
-    self, debug, error, info, info_span, span, trace, warn, Instrument as _, Level, Span,
+    self, debug_internal, error_internal, info_internal, info_span_internal, span, trace_internal,
+    warn_internal, Instrument as _, Level, Span,
 };
 use tracing_subscriber::{filter::EnvFilter, reload::Handle};
 use tracing_tower::{request_span, request_span::make};
@@ -78,9 +79,9 @@ async fn main() -> Result<(), Err> {
     );
 
     match res {
-        Ok(_) => info!("load generator exited successfully"),
+        Ok(_) => info_internal!("load generator exited successfully"),
         Err(e) => {
-            error!(error = ?e, "load generator failed");
+            error_internal!(error = ?e, "load generator failed");
         }
     }
     Ok(())
@@ -99,14 +100,14 @@ impl Service<Request<Body>> for Svc {
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         let rsp = Self::handle_request(req)
             .map(|body| {
-                trace!("sending response");
+                trace_internal!("sending response");
                 rsp(StatusCode::OK, body)
             })
             .unwrap_or_else(|e| {
-                trace!(rsp.error = %e);
+                trace_internal!(rsp.error = %e);
                 let status = match e {
                     HandleError::BadPath => {
-                        warn!(rsp.status = ?StatusCode::NOT_FOUND);
+                        warn_internal!(rsp.status = ?StatusCode::NOT_FOUND);
                         StatusCode::NOT_FOUND
                     }
                     HandleError::NoContentLength | HandleError::BadRequest(_) => {
@@ -123,10 +124,10 @@ impl Service<Request<Body>> for Svc {
 impl Svc {
     fn handle_request(req: Request<Body>) -> Result<String, HandleError> {
         const BAD_METHOD: WrongMethod = WrongMethod(&[Method::GET]);
-        trace!("handling request...");
+        trace_internal!("handling request...");
         match (req.method(), req.uri().path()) {
             (&Method::GET, "/z") => {
-                trace!(error = %"i don't like this letter.", letter = "z");
+                trace_internal!(error = %"i don't like this letter.", letter = "z");
                 Err(HandleError::Unknown)
             }
             (&Method::GET, path) => {
@@ -135,14 +136,14 @@ impl Svc {
                     .headers()
                     .get(header::CONTENT_LENGTH)
                     .ok_or(HandleError::NoContentLength)?;
-                trace!(req.content_length = ?content_length);
+                trace_internal!(req.content_length = ?content_length);
                 let content_length = content_length
                     .to_str()
                     .map_err(HandleError::bad_request)?
                     .parse::<usize>()
                     .map_err(HandleError::bad_request)?;
                 let mut body = String::new();
-                let span = span!(
+                let span = span_internal!(
                     Level::DEBUG,
                     "build_rsp",
                     rsp.len = content_length,
@@ -151,7 +152,7 @@ impl Svc {
                 let _enter = span.enter();
                 for idx in 0..content_length {
                     body.push_str(ch);
-                    trace!(rsp.body = ?body, rsp.body.idx = idx);
+                    trace_internal!(rsp.body = ?body, rsp.body.idx = idx);
                 }
                 Ok(body)
             }
@@ -234,12 +235,12 @@ where
         let f = async move {
             let rsp = match (req.method(), req.uri().path()) {
                 (&Method::PUT, "/filter") => {
-                    trace!("setting filter");
+                    trace_internal!("setting filter");
 
                     let body = hyper::body::to_bytes(req).await?;
                     match handle.set_from(body) {
                         Err(error) => {
-                            error!(%error, "setting filter failed!");
+                            error_internal!(%error, "setting filter failed!");
                             rsp(StatusCode::INTERNAL_SERVER_ERROR, error)
                         }
                         Ok(()) => rsp(StatusCode::NO_CONTENT, Body::empty()),
@@ -260,7 +261,7 @@ where
     fn set_from(&self, bytes: Bytes) -> Result<(), String> {
         use std::str;
         let body = str::from_utf8(bytes.as_ref()).map_err(|e| format!("{}", e))?;
-        trace!(request.body = ?body);
+        trace_internal!(request.body = ?body);
         let new_filter = body
             .parse::<tracing_subscriber::filter::EnvFilter>()
             .map_err(|e| format!("{}", e))?;
@@ -335,17 +336,17 @@ async fn load_gen(addr: SocketAddr) -> Result<(), Err> {
                 .body(Body::empty())
                 .unwrap();
 
-            let span = tracing::debug_span!(
+            let span = tracing::debug_span_internal!(
                 target: "gen",
                 "request",
                 req.method = ?req.method(),
                 req.path = ?req.uri().path(),
             );
             async move {
-                info!(target: "gen", "sending request");
+                info_internal!(target: "gen", "sending request");
                 let rsp = match svc.call(req).await {
                     Err(e) => {
-                        error!(target: "gen", error = %e, "request error!");
+                        error_internal!(target: "gen", error = %e, "request error!");
                         return Err(e);
                     }
                     Ok(rsp) => rsp,
@@ -353,37 +354,39 @@ async fn load_gen(addr: SocketAddr) -> Result<(), Err> {
 
                 let status = rsp.status();
                 if status != StatusCode::OK {
-                    error!(target: "gen", status = ?status, "error received from server!");
+                    error_internal!(target: "gen", status = ?status, "error received from server!");
                 }
 
                 let body = match hyper::body::to_bytes(rsp).await {
                     Err(e) => {
-                        error!(target: "gen", error = ?e, "body error!");
+                        error_internal!(target: "gen", error = ?e, "body error!");
                         return Err(e.into());
                     }
                     Ok(body) => body,
                 };
                 let body = String::from_utf8(body.to_vec())?;
-                info!(target: "gen", message = "response complete.", rsp.body = %body);
+                info_internal!(target: "gen", message = "response complete.", rsp.body = %body);
                 Ok(())
             }
             .instrument(span)
             .await
         }
-        .instrument(info_span!(target: "gen", "generated_request", remote.addr=%addr).or_current());
+        .instrument(
+            info_span_internal!(target: "gen", "generated_request", remote.addr=%addr).or_current(),
+        );
         tokio::spawn(f);
     }
 }
 
 fn req_span<A>(req: &Request<A>) -> Span {
-    let span = tracing::span!(
+    let span = tracing::span_internal!(
         target: "gen",
         Level::INFO,
         "request",
         req.method = ?req.method(),
         req.path = ?req.uri().path(),
     );
-    debug!(
+    debug_internal!(
         parent: &span,
         message = "received request.",
         req.headers = ?req.headers(),

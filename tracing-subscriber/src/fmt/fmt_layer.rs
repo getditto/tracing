@@ -1302,7 +1302,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            tracing::info!(?AlwaysError);
+            tracing::info_internal!(?AlwaysError);
         });
         let actual = sanitize_timings(make_writer.get_string());
 
@@ -1340,7 +1340,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            tracing::info!(?AlwaysError);
+            tracing::info_internal!(?AlwaysError);
         });
         let actual = sanitize_timings(make_writer.get_string());
         assert_eq!("", actual.as_str());
@@ -1358,7 +1358,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", x = 42);
+            let span1 = tracing::info_span_internal!("span1", x = 42);
             let _e = span1.enter();
         });
         let actual = sanitize_timings(make_writer.get_string());
@@ -1377,7 +1377,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", x = 42);
+            let span1 = tracing::info_span_internal!("span1", x = 42);
             let _e = span1.enter();
         });
         let actual = sanitize_timings(make_writer.get_string());
@@ -1400,7 +1400,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", x = 42);
+            let span1 = tracing::info_span_internal!("span1", x = 42);
             let _e = span1.enter();
         });
         let actual = sanitize_timings(make_writer.get_string());
@@ -1423,7 +1423,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", x = 42);
+            let span1 = tracing::info_span_internal!("span1", x = 42);
             let _e = span1.enter();
         });
         let actual = sanitize_timings(make_writer.get_string());
@@ -1445,7 +1445,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("span1", x = 42);
+            let span1 = tracing::info_span_internal!("span1", x = 42);
             let _e = span1.enter();
         });
         let actual = sanitize_timings(make_writer.get_string());
@@ -1498,12 +1498,12 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span1 = tracing::info_span!("writer1_span", x = 42);
+            let span1 = tracing::info_span_internal!("writer1_span", x = 42);
             let _e = span1.enter();
-            tracing::info!(target: "writer2", "hello writer2!");
-            let span2 = tracing::info_span!(target: "writer2", "writer2_span");
+            tracing::info_internal!(target: "writer2", "hello writer2!");
+            let span2 = tracing::info_span_internal!(target: "writer2", "writer2_span");
             let _e = span2.enter();
-            tracing::warn!(target: "writer1", "hello writer1!");
+            tracing::warn_internal!(target: "writer1", "hello writer1!");
         });
 
         let actual = sanitize_timings(make_writer1.get_string());

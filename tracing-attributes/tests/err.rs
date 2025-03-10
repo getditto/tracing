@@ -58,7 +58,7 @@ fn test_early_return() {
 #[instrument(err)]
 async fn err_async(polls: usize) -> Result<u8, TryFromIntError> {
     let future = PollN::new_ok(polls);
-    tracing::trace!(awaiting = true);
+    tracing::trace_internal!(awaiting = true);
     future.await.ok();
     u8::try_from(1234)
 }
@@ -113,7 +113,7 @@ fn test_mut() {
 #[instrument(err)]
 async fn err_mut_async(polls: usize, out: &mut u8) -> Result<(), TryFromIntError> {
     let future = PollN::new_ok(polls);
-    tracing::trace!(awaiting = true);
+    tracing::trace_internal!(awaiting = true);
     future.await.ok();
     *out = u8::try_from(1234)?;
     Ok(())
@@ -247,11 +247,11 @@ fn test_err_custom_target() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        let error_span = tracing::error_span!(target: "my_target", "error_span");
+        let error_span = tracing::error_span_internal!(target: "my_target", "error_span");
 
         {
             let _enter = error_span.enter();
-            tracing::error!(target: "my_target", "This should display")
+            tracing::error_internal!(target: "my_target", "This should display")
         }
     });
     handle.assert_finished();

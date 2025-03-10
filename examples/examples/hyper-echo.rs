@@ -6,10 +6,10 @@ use hyper::{
     Body, Server,
 };
 use std::str;
-use tracing::{debug, info, span, Instrument as _, Level};
+use tracing::{debug_internal, info_internal, span, Instrument as _, Level};
 
 async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    let span = span!(
+    let span = span_internal!(
         Level::INFO,
         "request",
         method = ?req.method(),
@@ -17,7 +17,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         headers = ?req.headers()
     );
     let _enter = span.enter();
-    info!("received request");
+    info_internal!("received request");
     let mut response = Response::new(Body::empty());
 
     let (rsp_span, resp) = match (req.method(), req.uri().path()) {
@@ -25,12 +25,15 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         (&Method::GET, "/") => {
             const BODY: &str = "Try POSTing data to /echo";
             *response.body_mut() = Body::from(BODY);
-            (span!(Level::INFO, "response", body = %(&BODY)), response)
+            (
+                span_internal!(Level::INFO, "response", body = %(&BODY)),
+                response,
+            )
         }
 
         // Simply echo the body back to the client.
         (&Method::POST, "/echo") => {
-            let span = span!(Level::INFO, "response", response_kind = %"echo");
+            let span = span_internal!(Level::INFO, "response", response_kind = %"echo");
             *response.body_mut() = req.into_body();
             (span, response)
         }
@@ -42,7 +45,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
                 .iter()
                 .map(|byte| byte.to_ascii_uppercase())
                 .collect::<Vec<u8>>();
-            debug!(
+            debug_internal!(
                 body = ?str::from_utf8(&body[..]),
                 uppercased = ?str::from_utf8(&upper[..]),
                 "uppercased request body"
@@ -50,24 +53,24 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
             *response.body_mut() = Body::from(upper);
             (
-                span!(Level::INFO, "response", response_kind = %"uppercase"),
+                span_internal!(Level::INFO, "response", response_kind = %"uppercase"),
                 response,
             )
         }
 
         // Reverse the entire body before sending back to the client.
         (&Method::POST, "/echo/reversed") => {
-            let span = span!(Level::TRACE, "response", response_kind = %"reversed");
+            let span = span_internal!(Level::TRACE, "response", response_kind = %"reversed");
             let _enter = span.enter();
             let body = hyper::body::to_bytes(req).await?;
             let reversed = body.iter().rev().cloned().collect::<Vec<u8>>();
-            debug!(
+            debug_internal!(
                 body = ?str::from_utf8(&body[..]),
                 "reversed request body"
             );
             *response.body_mut() = Body::from(reversed);
             (
-                span!(Level::INFO, "reversed", body = ?(&response.body())),
+                span_internal!(Level::INFO, "reversed", body = ?(&response.body())),
                 response,
             )
         }
@@ -76,7 +79,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         _ => {
             *response.status_mut() = StatusCode::NOT_FOUND;
             (
-                span!(
+                span_internal!(
                     Level::TRACE,
                     "response",
                     body = ?(),
@@ -97,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let local_addr: std::net::SocketAddr = ([127, 0, 0, 1], 3000).into();
-    let server_span = span!(Level::TRACE, "server", %local_addr);
+    let server_span = span_internal!(Level::TRACE, "server", %local_addr);
     let _enter = server_span.enter();
 
     let service = make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(echo)) });
@@ -105,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .serve(service)
         .instrument(server_span.clone());
 
-    info!("listening...");
+    info_internal!("listening...");
     server.await?;
 
     Ok(())

@@ -277,7 +277,7 @@ mod tests {
         let subscriber = Registry::default().with(ErrorLayer::default());
 
         with_default(subscriber, || {
-            let span = span!(Level::ERROR, "test span");
+            let span = span_internal!(Level::ERROR, "test span");
             let _guard = span.enter();
 
             let span_trace = SpanTrace::capture();
@@ -306,7 +306,7 @@ mod tests {
         let subscriber = Registry::default();
 
         with_default(subscriber, || {
-            let span = span!(Level::ERROR, "test span");
+            let span = span_internal!(Level::ERROR, "test span");
             let _guard = span.enter();
 
             let span_trace = SpanTrace::capture();

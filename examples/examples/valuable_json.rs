@@ -48,15 +48,15 @@ fn main() {
 
     // for comparison, record `user` without using its `Valuable`
     // implementation:
-    tracing::info!(valuable = false, user = ?user);
+    tracing::info_internal!(valuable = false, user = ?user);
 
     // If the `valuable` feature is enabled, record `user` using its'
     // `valuable::Valuable` implementation:
     #[cfg(tracing_unstable)]
-    tracing::info!(valuable = true, user = valuable(&user));
+    tracing::info_internal!(valuable = true, user = valuable(&user));
 
     #[cfg(not(tracing_unstable))]
-    tracing::warn!(
+    tracing::warn_internal!(
         "note: this example was run without `valuable` support enabled!\n\
         rerun with `RUSTFLAGS=\"--cfg tracing_unstable\" to enable `valuable`",
     );

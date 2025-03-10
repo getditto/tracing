@@ -17,7 +17,7 @@ fn span_on_drop() {
 
     impl Drop for AssertSpanOnDrop {
         fn drop(&mut self) {
-            tracing::info!("Drop");
+            tracing::info_internal!("Drop");
         }
     }
 
@@ -49,11 +49,11 @@ fn span_on_drop() {
     with_default(subscriber, || {
         // polled once
         Fut(Some(AssertSpanOnDrop))
-            .instrument(tracing::span!(Level::TRACE, "foo"))
+            .instrument(tracing::span_internal!(Level::TRACE, "foo"))
             .now_or_never()
             .unwrap();
 
         // never polled
-        drop(Fut(Some(AssertSpanOnDrop)).instrument(tracing::span!(Level::TRACE, "bar")));
+        drop(Fut(Some(AssertSpanOnDrop)).instrument(tracing::span_internal!(Level::TRACE, "bar")));
     });
 }

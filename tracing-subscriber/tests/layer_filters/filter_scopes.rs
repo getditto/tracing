@@ -53,12 +53,12 @@ fn filters_span_scopes() {
         .set_default();
 
     {
-        let _trace = tracing::trace_span!("my_span").entered();
-        let _debug = tracing::debug_span!("my_span").entered();
-        let _info = tracing::info_span!("my_span").entered();
-        let _warn = tracing::warn_span!("my_span").entered();
-        let _error = tracing::error_span!("my_span").entered();
-        tracing::error!("hello world");
+        let _trace = tracing::trace_span_internal!("my_span").entered();
+        let _debug = tracing::debug_span_internal!("my_span").entered();
+        let _info = tracing::info_span_internal!("my_span").entered();
+        let _warn = tracing::warn_span_internal!("my_span").entered();
+        let _error = tracing::error_span_internal!("my_span").entered();
+        tracing::error_internal!("hello world");
     }
 
     debug_handle.assert_finished();
@@ -117,13 +117,13 @@ fn filters_interleaved_span_scopes() {
         .set_default();
 
     {
-        let _a1 = tracing::trace_span!(target: "a", "a/trace").entered();
-        let _b1 = tracing::info_span!(target: "b", "b/info").entered();
-        let _a2 = tracing::info_span!(target: "a", "a/info").entered();
-        let _b2 = tracing::trace_span!(target: "b", "b/trace").entered();
-        tracing::info!("hello world");
-        tracing::debug!(target: "a", "hello to my target");
-        tracing::debug!(target: "b", "hello to my target");
+        let _a1 = tracing::trace_span_internal!(target: "a", "a/trace").entered();
+        let _b1 = tracing::info_span_internal!(target: "b", "b/info").entered();
+        let _a2 = tracing::info_span_internal!(target: "a", "a/info").entered();
+        let _b2 = tracing::trace_span_internal!(target: "b", "b/trace").entered();
+        tracing::info_internal!("hello world");
+        tracing::debug_internal!(target: "a", "hello to my target");
+        tracing::debug_internal!(target: "b", "hello to my target");
     }
 
     a_handle.assert_finished();

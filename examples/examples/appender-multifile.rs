@@ -23,10 +23,10 @@ fn main() {
         .init();
 
     yak_shave::shave_all(6);
-    tracing::info!("sleeping for a minute...");
+    tracing::info_internal!("sleeping for a minute...");
 
     std::thread::sleep(std::time::Duration::from_secs(60));
 
-    tracing::info!("okay, time to shave some more yaks!");
+    tracing::info_internal!("okay, time to shave some more yaks!");
     yak_shave::shave_all(10);
 }

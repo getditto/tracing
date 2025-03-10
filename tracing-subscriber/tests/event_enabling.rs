@@ -40,7 +40,7 @@ fn event_enabled_is_only_called_once() {
         on_event_count: Arc::new(Mutex::default()),
     });
     with_default(subscriber, || {
-        tracing::error!("hiya!");
+        tracing::error_internal!("hiya!");
     });
 
     assert_eq!(1, *count.lock().unwrap());
@@ -57,7 +57,7 @@ fn event_enabled_not_called_when_not_enabled() {
         on_event_count: Arc::new(Mutex::default()),
     });
     with_default(subscriber, || {
-        tracing::error!("hiya!");
+        tracing::error_internal!("hiya!");
     });
 
     assert_eq!(0, *count.lock().unwrap());
@@ -74,7 +74,7 @@ fn event_disabled_does_disable_event() {
         on_event_count,
     });
     with_default(subscriber, || {
-        tracing::error!("hiya!");
+        tracing::error_internal!("hiya!");
     });
 
     assert_eq!(0, *count.lock().unwrap());

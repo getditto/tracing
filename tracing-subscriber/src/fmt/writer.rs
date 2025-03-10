@@ -1207,7 +1207,9 @@ mod test {
     use crate::fmt::Subscriber;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
-    use tracing::{debug, error, info, trace, warn, Level};
+    use tracing::{
+        debug_internal, error_internal, info_internal, trace_internal, warn_internal, Level,
+    };
     use tracing_core::dispatcher::{self, Dispatch};
 
     fn test_writer<T>(make_writer: T, msg: &str, buf: &Mutex<Vec<u8>>)
@@ -1227,7 +1229,7 @@ mod test {
         let dispatch = Dispatch::from(subscriber);
 
         dispatcher::with_default(&dispatch, || {
-            error!("{}", msg);
+            error_internal!("{}", msg);
         });
 
         let expected = format!("ERROR {}: {}\n", module_path!(), msg);
@@ -1308,11 +1310,11 @@ mod test {
 
         let _s = tracing::subscriber::set_default(c);
 
-        trace!("trace");
-        debug!("debug");
-        info!("info");
-        warn!("warn");
-        error!("error");
+        trace_internal!("trace");
+        debug_internal!("debug");
+        info_internal!("info");
+        warn_internal!("warn");
+        error_internal!("error");
 
         let all_lines = [
             (Level::TRACE, "trace"),
@@ -1365,9 +1367,9 @@ mod test {
         };
 
         let _s = tracing::subscriber::set_default(c);
-        info!("hello");
-        info!("world");
-        info!("goodbye");
+        info_internal!("hello");
+        info_internal!("world");
+        info_internal!("goodbye");
 
         has_lines(&some_buf, &[(Level::INFO, "hello")]);
         has_lines(
@@ -1411,11 +1413,11 @@ mod test {
 
         let _s = tracing::subscriber::set_default(c);
 
-        trace!("trace");
-        debug!("debug");
-        info!("info");
-        warn!("warn");
-        error!("error");
+        trace_internal!("trace");
+        debug_internal!("debug");
+        info_internal!("info");
+        warn_internal!("warn");
+        error_internal!("error");
 
         println!("max level debug");
         has_lines(&debug_buf, &[(Level::DEBUG, "debug")]);
@@ -1454,8 +1456,8 @@ mod test {
         };
 
         let _s = tracing::subscriber::set_default(c);
-        info!("hello");
-        info!("world");
+        info_internal!("hello");
+        info_internal!("world");
 
         has_lines(&a_buf, &lines[..]);
         has_lines(&b_buf, &lines[..]);

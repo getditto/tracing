@@ -8,7 +8,7 @@ use tracing_attributes::instrument;
 #[instrument]
 async fn test_async_fn(polls: usize) -> Result<(), ()> {
     let future = PollN::new_ok(polls);
-    tracing::trace!(awaiting = true);
+    tracing::trace_internal!(awaiting = true);
     future.await
 }
 
@@ -112,7 +112,7 @@ fn async_fn_nested() {
 
     #[instrument]
     async fn test_async_fns_nested_other() {
-        tracing::trace!(nested = true);
+        tracing::trace_internal!(nested = true);
     }
 
     let span = expect::span().named("test_async_fns_nested");
@@ -181,7 +181,7 @@ fn async_fn_with_async_trait() {
     impl TestB for TestImpl {
         #[instrument]
         async fn bar(&self) {
-            tracing::trace!(val = self.0);
+            tracing::trace_internal!(val = self.0);
         }
     }
 
@@ -189,7 +189,7 @@ fn async_fn_with_async_trait() {
     impl TestC for TestImpl {
         #[instrument(skip(self))]
         async fn baz(&self) {
-            tracing::trace!(val = self.0);
+            tracing::trace_internal!(val = self.0);
         }
     }
 
@@ -428,7 +428,7 @@ fn manual_impl_future() {
     #[instrument]
     fn manual_impl_future() -> impl Future<Output = ()> {
         async {
-            tracing::trace!(poll = true);
+            tracing::trace_internal!(poll = true);
         }
     }
 
@@ -461,7 +461,7 @@ fn manual_box_pin() {
     #[instrument]
     fn manual_box_pin() -> Pin<Box<dyn Future<Output = ()>>> {
         Box::pin(async {
-            tracing::trace!(poll = true);
+            tracing::trace_internal!(poll = true);
         })
     }
 

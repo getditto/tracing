@@ -28,7 +28,7 @@ fn event_macros_dont_infinite_loop() {
 
         fn enabled(&self, meta: &Metadata<'_>) -> bool {
             assert!(meta.fields().iter().any(|f| f.name() == "foo"));
-            tracing::event!(Level::TRACE, bar = false);
+            tracing::event_internal!(Level::TRACE, bar = false);
             true
         }
 
@@ -42,7 +42,7 @@ fn event_macros_dont_infinite_loop() {
 
         fn event(&self, event: &Event<'_>) {
             assert!(event.metadata().fields().iter().any(|f| f.name() == "foo"));
-            tracing::event!(Level::TRACE, baz = false);
+            tracing::event_internal!(Level::TRACE, baz = false);
         }
 
         fn enter(&self, _: &Id) {}
@@ -51,7 +51,7 @@ fn event_macros_dont_infinite_loop() {
     }
 
     with_default(TestSubscriber, || {
-        tracing::event!(Level::TRACE, foo = false);
+        tracing::event_internal!(Level::TRACE, foo = false);
     })
 }
 
@@ -75,7 +75,7 @@ fn boxed_subscriber() {
 
     with_default(subscriber, || {
         let from = "my span";
-        let span = tracing::span!(
+        let span = tracing::span_internal!(
             Level::TRACE,
             "foo",
             bar = format_args!("hello from {}", from)
@@ -113,7 +113,7 @@ fn arced_subscriber() {
     // Test using a clone of the `Arc`ed subscriber
     with_default(subscriber.clone(), || {
         let from = "my span";
-        let span = tracing::span!(
+        let span = tracing::span_internal!(
             Level::TRACE,
             "foo",
             bar = format_args!("hello from {}", from)
@@ -122,7 +122,7 @@ fn arced_subscriber() {
     });
 
     with_default(subscriber, || {
-        tracing::info!("hello from my event");
+        tracing::info_internal!("hello from my event");
     });
 
     handle.assert_finished();

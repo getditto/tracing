@@ -148,7 +148,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tracing::span;
+use tracing::span::{self};
 use tracing::Subscriber;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;

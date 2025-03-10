@@ -18,7 +18,7 @@ fn enter_exit_is_reasonable() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let future = PollN::new_ok(2).instrument(tracing::span!(Level::TRACE, "foo"));
+        let future = PollN::new_ok(2).instrument(tracing::span_internal!(Level::TRACE, "foo"));
         block_on_future(future).unwrap();
     });
     handle.assert_finished();
@@ -37,7 +37,7 @@ fn error_ends_span() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let future = PollN::new_err(2).instrument(tracing::span!(Level::TRACE, "foo"));
+        let future = PollN::new_err(2).instrument(tracing::span_internal!(Level::TRACE, "foo"));
         block_on_future(future).unwrap_err();
     });
     handle.assert_finished();
@@ -50,7 +50,7 @@ fn span_on_drop() {
 
     impl Drop for AssertSpanOnDrop {
         fn drop(&mut self) {
-            tracing::info!("Drop");
+            tracing::info_internal!("Drop");
         }
     }
 
@@ -82,11 +82,11 @@ fn span_on_drop() {
     with_default(subscriber, || {
         // polled once
         Fut(Some(AssertSpanOnDrop))
-            .instrument(tracing::span!(Level::TRACE, "foo"))
+            .instrument(tracing::span_internal!(Level::TRACE, "foo"))
             .now_or_never()
             .unwrap();
 
         // never polled
-        drop(Fut(Some(AssertSpanOnDrop)).instrument(tracing::span!(Level::TRACE, "bar")));
+        drop(Fut(Some(AssertSpanOnDrop)).instrument(tracing::span_internal!(Level::TRACE, "bar")));
     });
 }

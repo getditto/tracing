@@ -10,7 +10,7 @@
 /// ```
 ///
 use argh::FromArgs;
-use tracing::info;
+use tracing::info_internal;
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
 #[path = "fmt/yak_shave.rs"]
@@ -37,10 +37,10 @@ fn main() {
 
     let number_of_yaks = 3;
     // this creates a new event, outside of any spans.
-    info!(number_of_yaks, "preparing to shave yaks");
+    info_internal!(number_of_yaks, "preparing to shave yaks");
 
     let number_shaved = yak_shave::shave_all(number_of_yaks);
-    info!(
+    info_internal!(
         all_yaks_shaved = number_shaved == number_of_yaks,
         "yak shaving completed."
     );

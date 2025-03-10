@@ -6,7 +6,7 @@ mod shared;
 fn bench(c: &mut Criterion) {
     shared::for_all_recording(&mut c.benchmark_group("span_fields"), |b| {
         b.iter(|| {
-            let span = span!(
+            let span = span_internal!(
                 Level::TRACE,
                 "span",
                 foo = "foo",

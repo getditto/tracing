@@ -7,11 +7,11 @@
 #![cfg(feature = "std")]
 
 use tracing::{
-    debug, error,
+    debug_internal, error_internal,
     field::{debug, display},
-    info,
+    info_internal,
     subscriber::with_default,
-    trace, warn, Level,
+    trace_internal, warn_internal, Level,
 };
 use tracing_mock::*;
 
@@ -69,7 +69,7 @@ fn event_with_message() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        debug!("hello from my tracing::event! yak shaved = {:?}", true);
+        debug_internal!("hello from my tracing::event! yak shaved = {:?}", true);
     });
 
     handle.assert_finished();
@@ -98,7 +98,7 @@ fn message_without_delims() {
 
     with_default(subscriber, || {
         let question = "life, the universe, and everything";
-        debug!(answer = 42, question, "hello from {where}! tricky? {:?}!", true, where = "my event");
+        debug_internal!(answer = 42, question, "hello from {where}! tricky? {:?}!", true, where = "my event");
     });
 
     handle.assert_finished();
@@ -124,7 +124,7 @@ fn string_message_without_delims() {
 
     with_default(subscriber, || {
         let question = "life, the universe, and everything";
-        debug!(answer = 42, question, "hello from my event");
+        debug_internal!(answer = 42, question, "hello from my event");
     });
 
     handle.assert_finished();
@@ -155,7 +155,7 @@ fn one_with_everything() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::event!(
+        tracing::event_internal!(
             target: "whatever",
             Level::ERROR,
             { foo = 666, bar = false, like_a_butterfly = 42.0 },
@@ -181,7 +181,7 @@ fn moved_field() {
         .run_with_handle();
     with_default(subscriber, || {
         let from = "my event";
-        tracing::event!(Level::INFO, foo = display(format!("hello from {}", from)))
+        tracing::event_internal!(Level::INFO, foo = display(format!("hello from {}", from)))
     });
 
     handle.assert_finished();
@@ -202,7 +202,7 @@ fn dotted_field_name() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::event!(Level::INFO, foo.bar = true, foo.baz = false);
+        tracing::event_internal!(Level::INFO, foo.bar = true, foo.baz = false);
     });
 
     handle.assert_finished();
@@ -224,7 +224,7 @@ fn borrowed_field() {
     with_default(subscriber, || {
         let from = "my event";
         let mut message = format!("hello from {}", from);
-        tracing::event!(Level::INFO, foo = display(&message));
+        tracing::event_internal!(Level::INFO, foo = display(&message));
         message.push_str(", which happened!");
     });
 
@@ -266,8 +266,8 @@ fn move_field_out_of_struct() {
             x: 3.234,
             y: -1.223,
         };
-        debug!(x = debug(pos.x), y = debug(pos.y));
-        debug!(target: "app_events", { position = debug(pos) }, "New position");
+        debug_internal!(x = debug(pos.x), y = debug(pos.y));
+        debug_internal!(target: "app_events", { position = debug(pos) }, "New position");
     });
     handle.assert_finished();
 }
@@ -286,7 +286,7 @@ fn display_shorthand() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::event!(Level::TRACE, my_field = %"hello world");
+        tracing::event_internal!(Level::TRACE, my_field = %"hello world");
     });
 
     handle.assert_finished();
@@ -306,7 +306,7 @@ fn debug_shorthand() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::event!(Level::TRACE, my_field = ?"hello world");
+        tracing::event_internal!(Level::TRACE, my_field = ?"hello world");
     });
 
     handle.assert_finished();
@@ -327,7 +327,7 @@ fn both_shorthands() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::event!(Level::TRACE, display_field = %"hello world", debug_field = ?"hello world");
+        tracing::event_internal!(Level::TRACE, display_field = %"hello world", debug_field = ?"hello world");
     });
 
     handle.assert_finished();
@@ -343,8 +343,8 @@ fn explicit_child() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
-        tracing::event!(parent: foo.id(), Level::TRACE, "bar");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
+        tracing::event_internal!(parent: foo.id(), Level::TRACE, "bar");
     });
 
     handle.assert_finished();
@@ -364,12 +364,12 @@ fn explicit_child_at_levels() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
-        trace!(parent: foo.id(), "a");
-        debug!(parent: foo.id(), "b");
-        info!(parent: foo.id(), "c");
-        warn!(parent: foo.id(), "d");
-        error!(parent: foo.id(), "e");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
+        trace_internal!(parent: foo.id(), "a");
+        debug_internal!(parent: foo.id(), "b");
+        info_internal!(parent: foo.id(), "c");
+        warn_internal!(parent: foo.id(), "d");
+        error_internal!(parent: foo.id(), "e");
     });
 
     handle.assert_finished();
@@ -398,7 +398,7 @@ fn option_values() {
         let none_bool: Option<bool> = None;
         let some_u64 = Some(42_u64);
         let none_u64: Option<u64> = None;
-        trace!(
+        trace_internal!(
             some_str = some_str,
             none_str = none_str,
             some_bool = some_bool,
@@ -434,7 +434,7 @@ fn option_ref_values() {
         let none_bool: &Option<bool> = &None;
         let some_u64 = &Some(42_u64);
         let none_u64: &Option<u64> = &None;
-        trace!(
+        trace_internal!(
             some_str = some_str,
             none_str = none_str,
             some_bool = some_bool,
@@ -470,7 +470,7 @@ fn option_ref_mut_values() {
         let none_bool: &mut Option<bool> = &mut None;
         let some_u64 = &mut Some(42_u64);
         let none_u64: &mut Option<u64> = &mut None;
-        trace!(
+        trace_internal!(
             some_str = some_str,
             none_str = none_str,
             some_bool = some_bool,
@@ -500,12 +500,12 @@ fn string_field() {
     with_default(subscriber, || {
         let mut my_string = String::from("hello");
 
-        tracing::event!(Level::INFO, my_string);
+        tracing::event_internal!(Level::INFO, my_string);
 
         // the string is not moved by using it as a field!
         my_string.push_str(" world!");
 
-        tracing::event!(Level::INFO, my_string);
+        tracing::event_internal!(Level::INFO, my_string);
     });
 
     handle.assert_finished();
@@ -532,14 +532,14 @@ fn constant_field_name() {
 
     with_default(subscriber, || {
         const FOO: &str = "foo";
-        tracing::event!(
+        tracing::event_internal!(
             Level::INFO,
             { std::convert::identity(FOO) } = "bar",
             { "constant string" } = "also works",
             foo.bar = "baz",
             "quux"
         );
-        tracing::event!(
+        tracing::event_internal!(
             Level::INFO,
             {
                 { std::convert::identity(FOO) } = "bar",

@@ -565,7 +565,7 @@ mod tests {
         let subscriber = AssertionLayer.with_subscriber(Registry::default());
 
         with_default(subscriber, || {
-            let span = tracing::debug_span!("span");
+            let span = tracing::debug_span_internal!("span");
             drop(span);
         });
     }
@@ -577,7 +577,7 @@ mod tests {
             .with_subscriber(Registry::default());
 
         with_default(subscriber, || {
-            let span = tracing::debug_span!("span");
+            let span = tracing::debug_span_internal!("span");
             drop(span);
         });
     }
@@ -765,9 +765,9 @@ mod tests {
         let dispatch = dispatcher::Dispatch::new(subscriber);
 
         dispatcher::with_default(&dispatch, || {
-            let span = tracing::debug_span!("span1");
+            let span = tracing::debug_span_internal!("span1");
             drop(span);
-            let span = tracing::info_span!("span2");
+            let span = tracing::info_span_internal!("span2");
             drop(span);
         });
 
@@ -793,9 +793,9 @@ mod tests {
         let dispatch = dispatcher::Dispatch::new(subscriber);
 
         let span2 = dispatcher::with_default(&dispatch, || {
-            let span = tracing::debug_span!("span1");
+            let span = tracing::debug_span_internal!("span1");
             drop(span);
-            let span2 = tracing::info_span!("span2");
+            let span2 = tracing::info_span_internal!("span2");
             let span2_clone = span2.clone();
             drop(span2);
             span2_clone
@@ -826,8 +826,8 @@ mod tests {
         let dispatch = dispatcher::Dispatch::new(subscriber);
 
         dispatcher::with_default(&dispatch, || {
-            let span1 = tracing::debug_span!("span1");
-            let span2 = tracing::info_span!("span2");
+            let span1 = tracing::debug_span_internal!("span1");
+            let span2 = tracing::info_span_internal!("span2");
 
             let enter1 = span1.enter();
             let enter2 = span2.enter();
@@ -859,8 +859,8 @@ mod tests {
         let dispatch = dispatcher::Dispatch::new(subscriber);
 
         dispatcher::with_default(&dispatch, || {
-            let span1 = tracing::info_span!("parent");
-            let span2 = tracing::info_span!(parent: &span1, "child");
+            let span1 = tracing::info_span_internal!("parent");
+            let span2 = tracing::info_span_internal!(parent: &span1, "child");
 
             state.assert_open("parent");
             state.assert_open("child");
@@ -886,9 +886,9 @@ mod tests {
         let dispatch = dispatcher::Dispatch::new(subscriber);
 
         dispatcher::with_default(&dispatch, || {
-            let span1 = tracing::info_span!("grandparent");
-            let span2 = tracing::info_span!(parent: &span1, "parent");
-            let span3 = tracing::info_span!(parent: &span2, "child");
+            let span1 = tracing::info_span_internal!("grandparent");
+            let span2 = tracing::info_span_internal!(parent: &span1, "parent");
+            let span3 = tracing::info_span_internal!(parent: &span2, "child");
 
             state.assert_open("grandparent");
             state.assert_open("parent");

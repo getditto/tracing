@@ -8,29 +8,29 @@
 /// cargo run --example tokio-spawny-thing
 /// ```
 use futures::future::try_join_all;
-use tracing::{debug, info, instrument, span, Instrument as _, Level};
+use tracing::{debug_internal, info_internal, instrument, span, Instrument as _, Level};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[instrument]
 async fn parent_task(subtasks: usize) -> Result<(), Error> {
-    info!("spawning subtasks...");
+    info_internal!("spawning subtasks...");
     let subtasks = (1..=subtasks)
         .map(|number| {
-            let span = span!(Level::INFO, "subtask", %number);
-            debug!(message = "creating subtask;", number);
+            let span = span_internal!(Level::INFO, "subtask", %number);
+            debug_internal!(message = "creating subtask;", number);
             tokio::spawn(subtask(number).instrument(span))
         })
         .collect::<Vec<_>>();
 
     // the returnable error would be if one of the subtasks panicked.
     let sum: usize = try_join_all(subtasks).await?.iter().sum();
-    info!(%sum, "all subtasks completed; calculated sum");
+    info_internal!(%sum, "all subtasks completed; calculated sum");
     Ok(())
 }
 
 async fn subtask(number: usize) -> usize {
-    info!(%number, "polling subtask");
+    info_internal!(%number, "polling subtask");
     number
 }
 

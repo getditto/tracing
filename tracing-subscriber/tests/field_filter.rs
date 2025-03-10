@@ -24,11 +24,11 @@ fn field_filter_events() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!(disabled = true);
-        tracing::info!("also disabled");
-        tracing::info!(thing = 1);
-        tracing::debug!(thing = 2);
-        tracing::trace!(thing = 3);
+        tracing::trace_internal!(disabled = true);
+        tracing::info_internal!("also disabled");
+        tracing::info_internal!(thing = 1);
+        tracing::debug_internal!(thing = 2);
+        tracing::trace_internal!(thing = 3);
     });
 
     finished.assert_finished();
@@ -62,16 +62,16 @@ fn field_filter_spans() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!("disabled");
-        tracing::info!("also disabled");
-        tracing::info_span!("span1", enabled = true).in_scope(|| {
-            tracing::info!(something = 1);
+        tracing::trace_internal!("disabled");
+        tracing::info_internal!("also disabled");
+        tracing::info_span_internal!("span1", enabled = true).in_scope(|| {
+            tracing::info_internal!(something = 1);
         });
-        tracing::debug_span!("span2", enabled = false, foo = "hi").in_scope(|| {
-            tracing::warn!(something = 2);
+        tracing::debug_span_internal!("span2", enabled = false, foo = "hi").in_scope(|| {
+            tracing::warn_internal!(something = 2);
         });
-        tracing::trace_span!("span3", enabled = true, answer = 42).in_scope(|| {
-            tracing::debug!(something = 2);
+        tracing::trace_span_internal!("span3", enabled = true, answer = 42).in_scope(|| {
+            tracing::debug_internal!(something = 2);
         });
     });
 
@@ -98,17 +98,17 @@ fn record_after_created() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        let span = tracing::info_span!("span", enabled = false);
+        let span = tracing::info_span_internal!("span", enabled = false);
         span.in_scope(|| {
-            tracing::debug!("i'm disabled!");
+            tracing::debug_internal!("i'm disabled!");
         });
 
         span.record("enabled", true);
         span.in_scope(|| {
-            tracing::debug!("i'm enabled!");
+            tracing::debug_internal!("i'm enabled!");
         });
 
-        tracing::debug!("i'm also disabled");
+        tracing::debug_internal!("i'm also disabled");
     });
 
     finished.assert_finished();

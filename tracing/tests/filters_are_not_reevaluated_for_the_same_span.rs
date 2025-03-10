@@ -44,9 +44,9 @@ fn filters_are_not_reevaluated_for_the_same_span() {
 
     // Enter "alice" and then "bob". The dispatcher expects to see "bob" but
     // not "alice."
-    let alice = span!(Level::TRACE, "alice");
+    let alice = span_internal!(Level::TRACE, "alice");
     let bob = alice.in_scope(|| {
-        let bob = span!(Level::TRACE, "bob");
+        let bob = span_internal!(Level::TRACE, "bob");
         bob.in_scope(|| ());
         bob
     });

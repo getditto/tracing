@@ -1,7 +1,9 @@
 use snafu::{ResultExt, Snafu};
 use std::error::Error;
 use thiserror::Error;
-use tracing::{debug, error, info, span, trace, warn, Level};
+use tracing::{
+    debug_internal, error_internal, info_internal, span, trace_internal, warn_internal, Level,
+};
 
 // the `#[tracing::instrument]` attribute creates and enters a span
 // every time the instrumented function is called. The span is named after the
@@ -13,16 +15,16 @@ pub fn shave(yak: usize) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // - `message`, with the key "message" and the value "hello! I'm gonna shave a yak."
     //
     // unlike other fields, `message`'s shorthand initialization is just the string itself.
-    trace!(excitement = "yay!", "hello! I'm gonna shave a yak");
+    trace_internal!(excitement = "yay!", "hello! I'm gonna shave a yak");
     if yak == 3 {
-        warn!("could not locate yak");
+        warn_internal!("could not locate yak");
         return OutOfCash
             .fail()
             .map_err(|source| MissingYakError::OutOfSpace { source })
             .context(MissingYak)
             .map_err(|err| err.into());
     } else {
-        trace!("yak shaved successfully");
+        trace_internal!("yak shaved successfully");
     }
     Ok(())
 }
@@ -35,24 +37,24 @@ pub fn shave_all(yaks: usize) -> usize {
     //
     // local variables (`yaks`) can be used as field values
     // without an assignment, similar to struct initializers.
-    let span = span!(Level::INFO, "shaving_yaks", yaks);
+    let span = span_internal!(Level::INFO, "shaving_yaks", yaks);
     let _enter = span.enter();
 
-    info!("shaving yaks");
+    info_internal!("shaving yaks");
 
     let mut yaks_shaved = 0;
     for yak in 1..=yaks {
         let res = shave(yak);
-        debug!(target: "yak_events", yak, shaved = res.is_ok());
+        debug_internal!(target: "yak_events", yak, shaved = res.is_ok());
 
         if let Err(ref error) = res {
             // Like spans, events can also use the field initialization shorthand.
             // In this instance, `yak` is the field being initalized.
-            error!(yak, error = error.as_ref(), "failed to shave yak");
+            error_internal!(yak, error = error.as_ref(), "failed to shave yak");
         } else {
             yaks_shaved += 1;
         }
-        trace!(yaks_shaved);
+        trace_internal!(yaks_shaved);
     }
 
     yaks_shaved

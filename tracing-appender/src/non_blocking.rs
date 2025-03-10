@@ -474,7 +474,7 @@ mod test {
             join_handles.push(thread::spawn(move || {
                 let subscriber = tracing_subscriber::fmt().with_writer(cloned_non_blocking);
                 tracing::subscriber::with_default(subscriber.finish(), || {
-                    tracing::event!(tracing::Level::INFO, "Hello");
+                    tracing::event_internal!(tracing::Level::INFO, "Hello");
                 });
             }));
         }

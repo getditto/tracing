@@ -29,9 +29,9 @@ fn with_filters_unboxed() {
         .with(vec![trace_layer, debug_layer, info_layer])
         .set_default();
 
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!("hello info");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!("hello info");
 
     trace_handle.assert_finished();
     debug_handle.assert_finished();
@@ -67,9 +67,9 @@ fn with_filters_boxed() {
         .with(vec![unfiltered_layer, debug_layer, target_layer])
         .set_default();
 
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!(target: "my_target", "hello my target");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!(target: "my_target", "hello my target");
 
     unfiltered_handle.assert_finished();
     debug_handle.assert_finished();

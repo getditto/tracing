@@ -41,7 +41,7 @@ fn synchronous_benchmark(c: &mut Criterion) {
     group.bench_function("single_thread", |b| {
         let subscriber = tracing_subscriber::fmt().with_writer(NoOpWriter::new());
         tracing::subscriber::with_default(subscriber.finish(), || {
-            b.iter(|| event!(Level::INFO, "event"))
+            b.iter(|| event_internal!(Level::INFO, "event"))
         });
     });
 
@@ -58,7 +58,7 @@ fn synchronous_benchmark(c: &mut Criterion) {
                 let subscriber = tracing_subscriber::fmt().with_writer(make_writer);
                 tracing::subscriber::with_default(subscriber.finish(), || {
                     for _ in 0..iters {
-                        event!(Level::INFO, "event");
+                        event_internal!(Level::INFO, "event");
                     }
                 });
             }));
@@ -67,7 +67,7 @@ fn synchronous_benchmark(c: &mut Criterion) {
                 let subscriber = tracing_subscriber::fmt().with_writer(cloned_make_writer);
                 tracing::subscriber::with_default(subscriber.finish(), || {
                     for _ in 0..iters {
-                        event!(Level::INFO, "event");
+                        event_internal!(Level::INFO, "event");
                     }
                 });
             }));
@@ -89,7 +89,7 @@ fn non_blocking_benchmark(c: &mut Criterion) {
         let subscriber = tracing_subscriber::fmt().with_writer(non_blocking);
 
         tracing::subscriber::with_default(subscriber.finish(), || {
-            b.iter(|| event!(Level::INFO, "event"))
+            b.iter(|| event_internal!(Level::INFO, "event"))
         });
     });
 
@@ -107,7 +107,7 @@ fn non_blocking_benchmark(c: &mut Criterion) {
                 let subscriber = tracing_subscriber::fmt().with_writer(non_blocking);
                 tracing::subscriber::with_default(subscriber.finish(), || {
                     for _ in 0..iters {
-                        event!(Level::INFO, "event");
+                        event_internal!(Level::INFO, "event");
                     }
                 });
             }));
@@ -116,7 +116,7 @@ fn non_blocking_benchmark(c: &mut Criterion) {
                 let subscriber = tracing_subscriber::fmt().with_writer(cloned_make_writer);
                 tracing::subscriber::with_default(subscriber.finish(), || {
                     for _ in 0..iters {
-                        event!(Level::INFO, "event");
+                        event_internal!(Level::INFO, "event");
                     }
                 });
             }));

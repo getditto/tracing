@@ -1,12 +1,12 @@
 #![deny(rust_2018_idioms)]
 
-use tracing::{debug, info, span, Level};
+use tracing::{debug_internal, info_internal, span, Level};
 use tracing_attributes::instrument;
 
 #[instrument]
 #[inline]
 fn suggest_band() -> String {
-    debug!("Suggesting a band.");
+    debug_internal!("Suggesting a band.");
     String::from("Wild Pink")
 }
 
@@ -17,9 +17,9 @@ fn main() {
     tracing::subscriber::with_default(subscriber, || {
         let num_recs = 1;
 
-        let span = span!(Level::TRACE, "get_band_rec", ?num_recs);
+        let span = span_internal!(Level::TRACE, "get_band_rec", ?num_recs);
         let _enter = span.enter();
         let band = suggest_band();
-        info!(message = "Got a recommendation!", %band);
+        info_internal!(message = "Got a recommendation!", %band);
     });
 }

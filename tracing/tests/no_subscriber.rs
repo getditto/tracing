@@ -10,7 +10,7 @@ fn no_subscriber_disables_global() {
     tracing::subscriber::set_global_default(subscriber)
         .expect("setting global default must succeed");
     tracing::subscriber::with_default(tracing::subscriber::NoSubscriber::default(), || {
-        tracing::info!("this should not be recorded");
+        tracing::info_internal!("this should not be recorded");
     });
     handle.assert_finished();
 }

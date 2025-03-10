@@ -581,9 +581,10 @@ mod test {
             .with_current_span(true)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -609,9 +610,10 @@ mod test {
             .with_file(true)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -625,9 +627,10 @@ mod test {
             .with_line_number(true)
             .with_span_list(true);
         test_json_with_line_number(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -641,9 +644,10 @@ mod test {
             .with_current_span(true)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -656,9 +660,10 @@ mod test {
             .with_current_span(false)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -671,9 +676,10 @@ mod test {
             .with_current_span(true)
             .with_span_list(false);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -686,16 +692,17 @@ mod test {
             .with_current_span(true)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span =
+                tracing::span_internal!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
-            let span = tracing::span!(
+            let span = tracing::span_internal!(
                 tracing::Level::INFO,
                 "nested_json_span",
                 answer = 43,
                 number = 4
             );
             let _guard = span.enter();
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -708,7 +715,7 @@ mod test {
             .with_current_span(true)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            tracing::info!("some json test");
+            tracing::info_internal!("some json test");
         });
     }
 
@@ -724,17 +731,17 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            tracing::info!("an event outside the root span");
+            tracing::info_internal!("an event outside the root span");
             assert_eq!(
                 parse_as_json(&make_writer)["fields"]["message"],
                 "an event outside the root span"
             );
 
-            let span = tracing::info_span!("the span", na = tracing::field::Empty);
+            let span = tracing::info_span_internal!("the span", na = tracing::field::Empty);
             span.record("na", "value");
             let _enter = span.enter();
 
-            tracing::info!("an event inside the root span");
+            tracing::info_internal!("an event inside the root span");
             assert_eq!(
                 parse_as_json(&make_writer)["fields"]["message"],
                 "an event inside the root span"
@@ -755,7 +762,7 @@ mod test {
 
         with_default(subscriber, || {
             let context = "parent";
-            let parent_span = tracing::info_span!("parent_span", context);
+            let parent_span = tracing::info_span_internal!("parent_span", context);
 
             let event = parse_as_json(&buffer);
             assert_eq!(event["fields"]["message"], "new");
@@ -767,7 +774,7 @@ mod test {
             assert_eq!(event["span"]["context"], "parent");
 
             let context = "child";
-            let child_span = tracing::info_span!("child_span", context);
+            let child_span = tracing::info_span_internal!("child_span", context);
             let event = parse_as_json(&buffer);
             assert_eq!(event["fields"]["message"], "new");
             assert_eq!(event["span"]["context"], "child");
@@ -813,7 +820,7 @@ mod test {
             .finish();
 
         with_default(subscriber, || {
-            let span = tracing::info_span!("valid_json");
+            let span = tracing::info_span_internal!("valid_json");
             assert_eq!(parse_as_json(&buffer)["fields"]["message"], "new");
 
             let _enter = span.enter();

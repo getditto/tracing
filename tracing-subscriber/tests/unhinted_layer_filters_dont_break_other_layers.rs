@@ -94,11 +94,11 @@ fn mixed_layered() {
 }
 
 fn events() {
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!("hello info");
-    tracing::warn!("hello warn");
-    tracing::error!("hello error");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!("hello info");
+    tracing::warn_internal!("hello warn");
+    tracing::error_internal!("hello error");
 }
 
 fn filter<S>() -> DynFilterFn<S> {

@@ -46,7 +46,7 @@ fn default_parent_test() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let contextual_parent = tracing::span!(Level::TRACE, "contextual_parent");
+        let contextual_parent = tracing::span_internal!(Level::TRACE, "contextual_parent");
 
         with_default_parent();
 
@@ -90,8 +90,8 @@ fn explicit_parent_test() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let contextual_parent = tracing::span!(Level::INFO, "contextual_parent");
-        let explicit_parent = tracing::span!(Level::INFO, "explicit_parent");
+        let contextual_parent = tracing::span_internal!(Level::INFO, "contextual_parent");
+        let explicit_parent = tracing::span_internal!(Level::INFO, "explicit_parent");
 
         contextual_parent.in_scope(|| {
             with_explicit_parent(&explicit_parent);
