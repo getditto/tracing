@@ -224,8 +224,7 @@ fn gen_block<B: ToTokens>(
         let custom_fields = &args.fields;
 
         quote!({
-            #[allow(deprecated)]
-            tracing::span!(
+            tracing::span_internal!(
                 target: #target,
                 #(parent: #parent,)*
                 #level,
@@ -243,12 +242,10 @@ fn gen_block<B: ToTokens>(
             let level_tokens = event_args.level(Level::Error);
             match event_args.mode {
                 FormatMode::Default | FormatMode::Display => Some(quote!({
-                    #[allow(deprecated)]
-                    tracing::event!(target: #target, #level_tokens, error = %e)
+                    tracing::event_internal!(target: #target, #level_tokens, error = %e)
                 })),
                 FormatMode::Debug => Some(quote!({
-                    #[allow(deprecated)]
-                    tracing::event!(target: #target, #level_tokens, error = ?e)
+                    tracing::event_internal!(target: #target, #level_tokens, error = ?e)
                 })),
             }
         }
@@ -260,12 +257,10 @@ fn gen_block<B: ToTokens>(
             let level_tokens = event_args.level(args_level);
             match event_args.mode {
                 FormatMode::Display => Some(quote!({
-                    #[allow(deprecated)]
-                    tracing::event!(target: #target, #level_tokens, return = %x)
+                    tracing::event_internal!(target: #target, #level_tokens, return = %x)
                 })),
                 FormatMode::Default | FormatMode::Debug => Some(quote!({
-                    #[allow(deprecated)]
-                    tracing::event!(target: #target, #level_tokens, return = ?x)
+                    tracing::event_internal!(target: #target, #level_tokens, return = ?x)
                 })),
             }
         }
