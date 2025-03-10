@@ -28,6 +28,7 @@ macro_rules! span {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! span_internal {
     (target: $target:expr, parent: $parent:expr, $lvl:expr, $name:expr) => {
         $crate::span_internal!(target: $target, parent: $parent, $lvl, $name,)
@@ -186,6 +187,7 @@ macro_rules! trace_span {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! trace_span_internal {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span_internal!(
@@ -278,6 +280,7 @@ macro_rules! debug_span {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! debug_span_internal {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span_internal!(
@@ -370,6 +373,7 @@ macro_rules! info_span {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! info_span_internal {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span_internal!(
@@ -462,6 +466,7 @@ macro_rules! warn_span {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! warn_span_internal {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span_internal!(
@@ -553,6 +558,7 @@ macro_rules! error_span {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! error_span_internal {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span_internal!(
@@ -659,6 +665,7 @@ macro_rules! event {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! event_internal {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, $lvl:expr, { $($fields:tt)* } )=> ({
@@ -1388,6 +1395,7 @@ macro_rules! trace {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! trace_internal {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -1676,6 +1684,7 @@ macro_rules! debug {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! debug_internal {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -1975,6 +1984,7 @@ macro_rules! info {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! info_internal {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -2267,6 +2277,7 @@ macro_rules! warn {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! warn_internal {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -2555,6 +2566,7 @@ macro_rules! error {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! error_internal {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
