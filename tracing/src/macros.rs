@@ -17,6 +17,10 @@
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! span {
     (target: $target:expr, parent: $parent:expr, $lvl:expr, $name:expr) => {
         $crate::span!(target: $target, parent: $parent, $lvl, $name,)
@@ -164,6 +168,10 @@ macro_rules! span {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! trace_span {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span!(
@@ -245,6 +253,10 @@ macro_rules! trace_span {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! debug_span {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span!(
@@ -326,6 +338,10 @@ macro_rules! debug_span {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! info_span {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span!(
@@ -407,6 +423,10 @@ macro_rules! info_span {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! warn_span {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span!(
@@ -487,6 +507,10 @@ macro_rules! warn_span {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! error_span {
     (target: $target:expr, parent: $parent:expr, $name:expr, $($field:tt)*) => {
         $crate::span!(
@@ -582,6 +606,10 @@ macro_rules! error_span {
 // /// #}
 // /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! event {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, $lvl:expr, { $($fields:tt)* } )=> ({
@@ -1300,6 +1328,10 @@ macro_rules! enabled {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! trace {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -1577,6 +1609,10 @@ macro_rules! trace {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! debug {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -1865,6 +1901,10 @@ macro_rules! debug {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! info {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -2146,6 +2186,10 @@ macro_rules! info {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! warn {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
@@ -2423,6 +2467,10 @@ macro_rules! warn {
 /// # }
 /// ```
 #[macro_export]
+#[deprecated = "\
+    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
+    `ditto-logging` from your crate would create a dependency cycle\
+"]
 macro_rules! error {
     // Name / target / parent.
     (name: $name:expr, target: $target:expr, parent: $parent:expr, { $($field:tt)* }, $($arg:tt)* ) => (
