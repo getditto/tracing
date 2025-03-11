@@ -18,8 +18,8 @@
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::span` instead, or `ditto_logging_macros::span` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! span {
     ($($input:tt)*) => (
@@ -177,8 +177,8 @@ macro_rules! span_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::trace_span` instead, or `ditto_logging_macros::trace_span` directly if \
+    depending on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! trace_span {
     ($($input:tt)*) => (
@@ -270,8 +270,8 @@ macro_rules! trace_span_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::debug_span` instead, or `ditto_logging_macros::debug_span` directly if \
+    depending on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! debug_span {
     ($($input:tt)*) => (
@@ -363,8 +363,8 @@ macro_rules! debug_span_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::info_span` instead, or `ditto_logging_macros::info_span` directly if \
+    depending on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! info_span {
     ($($input:tt)*) => (
@@ -456,8 +456,8 @@ macro_rules! info_span_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::warn_span` instead, or `ditto_logging_macros::warn_span` directly if \
+    depending on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! warn_span {
     ($($input:tt)*) => (
@@ -548,8 +548,8 @@ macro_rules! warn_span_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::error_span` instead, or `ditto_logging_macros::error_span` directly if \
+    depending on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! error_span {
     ($($input:tt)*) => (
@@ -655,8 +655,8 @@ macro_rules! error_span_internal {
 // /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::event` instead, or `ditto_logging_macros::event` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! event {
     ($($input:tt)*) => (
@@ -1385,8 +1385,8 @@ macro_rules! enabled {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::trace` instead, or `ditto_logging_macros::trace` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! trace {
     ($($input:tt)*) => (
@@ -1674,8 +1674,8 @@ macro_rules! trace_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::debug` instead, or `ditto_logging_macros::debug` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! debug {
     ($($input:tt)*) => (
@@ -1974,8 +1974,8 @@ macro_rules! debug_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::info` instead, or `ditto_logging_macros::info` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! info {
     ($($input:tt)*) => (
@@ -2267,8 +2267,8 @@ macro_rules! info_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::warn` instead, or `ditto_logging_macros::warn` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! warn {
     ($($input:tt)*) => (
@@ -2556,8 +2556,8 @@ macro_rules! warn_internal {
 /// ```
 #[macro_export]
 #[deprecated = "\
-    import this from `ditto-logging` instead, or `ditto-logging-macros` directly if depending on \
-    `ditto-logging` from your crate would create a dependency cycle\
+    import `ditto_logging::error` instead, or `ditto_logging_macros::error` directly if depending \
+    on `ditto-logging` from your crate would create a dependency cycle\
 "]
 macro_rules! error {
     ($($input:tt)*) => (
