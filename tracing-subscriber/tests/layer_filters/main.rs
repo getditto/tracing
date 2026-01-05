@@ -4,6 +4,7 @@ mod downcast_raw;
 mod filter_scopes;
 mod option;
 mod per_event;
+mod reentrancy;
 mod targets;
 mod trees;
 mod vec;
