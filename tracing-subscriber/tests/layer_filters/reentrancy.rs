@@ -82,7 +82,11 @@ fn disabled_span_inside_event() {
 fn enabled_span_inside_event() {
     let (expect, handle) = layer::named("plf_error")
         .new_span(expect::span().at_level(Level::ERROR))
+        .enter(expect::span().at_level(Level::ERROR))
+        .exit(expect::span().at_level(Level::ERROR))
         .new_span(expect::span().at_level(Level::ERROR))
+        .enter(expect::span().at_level(Level::ERROR))
+        .exit(expect::span().at_level(Level::ERROR))
         .only()
         .run_with_handle();
 
