@@ -645,7 +645,7 @@ impl dyn Subscriber + Send + Sync {
 ///
 /// [`Subscriber`]: super::Subscriber
 /// [`register_callsite`]: super::Subscriber::register_callsite
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Interest(InterestKind);
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]

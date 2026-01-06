@@ -39,11 +39,10 @@ use core::{
     marker::PhantomData,
     ops::Deref,
 };
-use std::thread_local;
+use std::{eprintln, thread_local, vec::Vec};
 use tracing_core::{
-    span,
+    Dispatch, Event, Metadata, span,
     subscriber::{Interest, Subscriber},
-    Dispatch, Event, Metadata,
 };
 pub mod combinator;
 
@@ -137,7 +136,62 @@ impl FilterMap {
 ///    recording a span or event can be skipped entirely.
 #[derive(Debug)]
 pub(crate) struct FilterState {
+    current: FilterStateFrame,
+    outer: RefCell<Vec<FilterStateFrame>>,
+}
+
+impl FilterState {
+    fn push(&self) {
+        let to_push = FilterStateFrame::new();
+        self.current.enabled.swap(&to_push.enabled);
+        self.current.interest.swap(&to_push.interest);
+
+        #[cfg(debug_assertions)]
+        {
+            self.current
+                .counters
+                .in_filter_pass
+                .swap(&to_push.counters.in_filter_pass);
+            self.current
+                .counters
+                .in_interest_pass
+                .swap(&to_push.counters.in_interest_pass);
+        }
+
+        let mut outer = self.outer.borrow_mut();
+        if !outer.is_empty() {
+            eprintln!("Reentrancy detected in per-layer filter!");
+        }
+        outer.push(to_push);
+    }
+
+    fn pop(&self) {
+        let mut outer = self.outer.borrow_mut();
+        let to_pop = outer
+            .pop()
+            .expect("per-layer filter state stack should never become empty");
+
+        self.current.enabled.swap(&to_pop.enabled);
+        self.current.interest.swap(&to_pop.interest);
+
+        #[cfg(debug_assertions)]
+        {
+            self.current
+                .counters
+                .in_filter_pass
+                .swap(&to_pop.counters.in_filter_pass);
+            self.current
+                .counters
+                .in_interest_pass
+                .swap(&to_pop.counters.in_interest_pass);
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct FilterStateFrame {
     enabled: Cell<FilterMap>,
+
     // TODO(eliza): `Interest`s should _probably_ be `Copy`. The only reason
     // they're not is our Obsessive Commitment to Forwards-Compatibility. If
     // this changes in tracing-core`, we can make this a `Cell` rather than
@@ -148,9 +202,20 @@ pub(crate) struct FilterState {
     counters: DebugCounters,
 }
 
+impl FilterStateFrame {
+    const fn new() -> Self {
+        Self {
+            enabled: Cell::new(FilterMap::new()),
+            interest: RefCell::new(None),
+            #[cfg(debug_assertions)]
+            counters: DebugCounters::new(),
+        }
+    }
+}
+
 /// Extra counters added to `FilterState` used only to make debug assertions.
 #[cfg(debug_assertions)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct DebugCounters {
     /// How many per-layer filters have participated in the current `enabled`
     /// call?
@@ -1097,42 +1162,47 @@ impl fmt::Binary for FilterMap {
 impl FilterState {
     const fn new() -> Self {
         Self {
-            enabled: Cell::new(FilterMap::new()),
-            interest: RefCell::new(None),
-
-            #[cfg(debug_assertions)]
-            counters: DebugCounters::new(),
+            current: FilterStateFrame::new(),
+            outer: RefCell::new(Vec::new()),
         }
     }
 
     fn set(&self, filter: FilterId, enabled: bool) {
         #[cfg(debug_assertions)]
         {
-            let in_current_pass = self.counters.in_filter_pass.get();
+            let in_current_pass = self.current.counters.in_filter_pass.get();
             if in_current_pass == 0 {
-                debug_assert_eq!(self.enabled.get(), FilterMap::new());
+                debug_assert_eq!(self.current.enabled.get(), FilterMap::new());
             }
-            self.counters.in_filter_pass.set(in_current_pass + 1);
+            self.current
+                .counters
+                .in_filter_pass
+                .set(in_current_pass + 1);
             debug_assert_eq!(
-                self.counters.in_interest_pass.get(),
+                self.current.counters.in_interest_pass.get(),
                 0,
                 "if we are in or starting a filter pass, we must not be in an interest pass."
             )
         }
 
-        self.enabled.set(self.enabled.get().set(filter, enabled))
+        self.current
+            .enabled
+            .set(self.current.enabled.get().set(filter, enabled))
     }
 
     fn add_interest(&self, interest: Interest) {
-        let mut curr_interest = self.interest.borrow_mut();
+        let mut curr_interest = self.current.interest.borrow_mut();
 
         #[cfg(debug_assertions)]
         {
-            let in_current_pass = self.counters.in_interest_pass.get();
+            let in_current_pass = self.current.counters.in_interest_pass.get();
             if in_current_pass == 0 {
                 debug_assert!(curr_interest.is_none());
             }
-            self.counters.in_interest_pass.set(in_current_pass + 1);
+            self.current
+                .counters
+                .in_interest_pass
+                .set(in_current_pass + 1);
         }
 
         if let Some(curr_interest) = curr_interest.as_mut() {
@@ -1151,17 +1221,17 @@ impl FilterState {
     pub(crate) fn event_enabled() -> bool {
         FILTERING
             .try_with(|this| {
-                let enabled = this.enabled.get().any_enabled();
+                let enabled = this.current.enabled.get().any_enabled();
                 #[cfg(debug_assertions)]
                 {
-                    if this.counters.in_filter_pass.get() == 0 {
-                        debug_assert_eq!(this.enabled.get(), FilterMap::new());
+                    if this.current.counters.in_filter_pass.get() == 0 {
+                        debug_assert_eq!(this.current.enabled.get(), FilterMap::new());
                     }
 
                     // Nothing enabled this event, we won't tick back down the
                     // counter in `did_enable`. Reset it.
                     if !enabled {
-                        this.counters.in_filter_pass.set(0);
+                        this.current.counters.in_filter_pass.set(0);
                     }
                 }
                 enabled
@@ -1175,7 +1245,7 @@ impl FilterState {
     /// This is used to implement the `on_event` and `new_span` methods for
     /// `Filtered`.
     fn did_enable(&self, filter: FilterId, f: impl FnOnce()) {
-        let map = self.enabled.get();
+        let map = self.current.enabled.get();
         if map.is_enabled(filter) {
             // If the filter didn't disable the current span/event, run the
             // callback.
@@ -1186,19 +1256,20 @@ impl FilterState {
             // `FilterState`. The bit has already been "consumed" by skipping
             // this callback, and we need to ensure that the `FilterMap` for
             // this thread is reset when the *next* `enabled` call occurs.
-            self.enabled.set(map.set(filter, true));
+            self.current.enabled.set(map.set(filter, true));
         }
         #[cfg(debug_assertions)]
         {
-            let in_current_pass = self.counters.in_filter_pass.get();
+            let in_current_pass = self.current.counters.in_filter_pass.get();
             if in_current_pass <= 1 {
-                debug_assert_eq!(self.enabled.get(), FilterMap::new());
+                debug_assert_eq!(self.current.enabled.get(), FilterMap::new());
             }
-            self.counters
+            self.current
+                .counters
                 .in_filter_pass
                 .set(in_current_pass.saturating_sub(1));
             debug_assert_eq!(
-                self.counters.in_interest_pass.get(),
+                self.current.counters.in_interest_pass.get(),
                 0,
                 "if we are in a filter pass, we must not be in an interest pass."
             )
@@ -1207,25 +1278,27 @@ impl FilterState {
 
     /// Run a second filtering pass, e.g. for Layer::event_enabled.
     fn and(&self, filter: FilterId, f: impl FnOnce() -> bool) -> bool {
-        let map = self.enabled.get();
+        let map = self.current.enabled.get();
         let enabled = map.is_enabled(filter) && f();
-        self.enabled.set(map.set(filter, enabled));
+        self.current.enabled.set(map.set(filter, enabled));
         enabled
     }
 
-    /// Clears the current in-progress filter state.
-    ///
-    /// This resets the [`FilterMap`] and current [`Interest`] as well as
-    /// clearing the debug counters.
-    pub(crate) fn clear_enabled() {
+    pub(crate) fn begin_pass() {
         // Drop the `Result` returned by `try_with` --- if we are in the middle
         // a panic and the thread-local has been torn down, that's fine, just
-        // ignore it ratehr than panicking.
+        // ignore it rather than panicking.
         let _ = FILTERING.try_with(|filtering| {
-            filtering.enabled.set(FilterMap::new());
+            filtering.push();
+        });
+    }
 
-            #[cfg(debug_assertions)]
-            filtering.counters.in_filter_pass.set(0);
+    pub(crate) fn end_pass() {
+        // Drop the `Result` returned by `try_with` --- if we are in the middle
+        // a panic and the thread-local has been torn down, that's fine, just
+        // ignore it rather than panicking.
+        let _ = FILTERING.try_with(|filtering| {
+            filtering.pop();
         });
     }
 
@@ -1234,20 +1307,20 @@ impl FilterState {
             .try_with(|filtering| {
                 #[cfg(debug_assertions)]
                 {
-                    if filtering.counters.in_interest_pass.get() == 0 {
-                        debug_assert!(filtering.interest.try_borrow().ok()?.is_none());
+                    if filtering.current.counters.in_interest_pass.get() == 0 {
+                        debug_assert!(filtering.current.interest.try_borrow().ok()?.is_none());
                     }
-                    filtering.counters.in_interest_pass.set(0);
+                    filtering.current.counters.in_interest_pass.set(0);
                 }
-                filtering.interest.try_borrow_mut().ok()?.take()
+                filtering.current.interest.try_borrow_mut().ok()?.take()
             })
             .ok()?
     }
 
     pub(crate) fn filter_map(&self) -> FilterMap {
-        let map = self.enabled.get();
+        let map = self.current.enabled.get();
         #[cfg(debug_assertions)]
-        if self.counters.in_filter_pass.get() == 0 {
+        if self.current.counters.in_filter_pass.get() == 0 {
             debug_assert_eq!(map, FilterMap::new());
         }
 

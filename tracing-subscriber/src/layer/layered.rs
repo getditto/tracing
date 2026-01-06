@@ -1,4 +1,4 @@
-use tracing_core::{metadata::Metadata, span, Dispatch, Event, Interest, LevelFilter, Subscriber};
+use tracing_core::{Dispatch, Event, Interest, LevelFilter, Subscriber, metadata::Metadata, span};
 
 use crate::{
     filter,
@@ -96,6 +96,16 @@ where
         self.layer.on_register_dispatch(subscriber);
     }
 
+    #[cfg(feature = "registry")]
+    fn on_begin_pass(&self) {
+        filter::FilterState::begin_pass();
+    }
+
+    #[cfg(feature = "registry")]
+    fn on_end_pass(&self) {
+        filter::FilterState::end_pass();
+    }
+
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
         self.pick_interest(self.layer.register_callsite(metadata), || {
             self.inner.register_callsite(metadata)
@@ -108,13 +118,6 @@ where
             self.inner.enabled(metadata)
         } else {
             // otherwise, the callsite is disabled by the layer
-
-            // If per-layer filters are in use, and we are short-circuiting
-            // (rather than calling into the inner type), clear the current
-            // per-layer filter `enabled` state.
-            #[cfg(feature = "registry")]
-            filter::FilterState::clear_enabled();
-
             false
         }
     }
