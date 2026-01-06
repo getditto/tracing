@@ -1,5 +1,5 @@
 //! Collectors collect and record trace data.
-use crate::{span, Dispatch, Event, LevelFilter, Metadata};
+use crate::{Dispatch, Event, LevelFilter, Metadata, span};
 
 use alloc::{boxed::Box, sync::Arc};
 use core::any::{Any, TypeId};
@@ -100,6 +100,64 @@ pub trait Subscriber: 'static {
     fn on_register_dispatch(&self, subscriber: &Dispatch) {
         let _ = subscriber;
     }
+
+    /// Invoked when an event or span is about to start being constructed on the calling thread.
+    ///
+    /// This might mean for example that [`register_callsite`] is about to be called, or that the
+    /// callsite has already been registered previously and that [`enabled`] is about to be called
+    /// instead.
+    ///
+    /// It's very important to note what "constructed" means in this context. You can think of this
+    /// as equating to "all the stuff `span!()` or `event!()` does", but to be precise, it includes
+    /// the following:
+    ///
+    /// - Metadata is constructed
+    /// - The level is checked against any static max level or level hint
+    /// - The subscriber's interest in the callsite is checked, which may involve a call to
+    ///   [`register_callsite`]
+    /// - [`enabled`] is called if the interest is [`Interest::sometimes`]
+    /// - The [`ValueSet`] is constructed
+    /// - If an event, and if the "log" feature is enabled, it's dispatched to `tracing-log`
+    /// - If an event, [`event_enabled`] is called with the fully constructed event
+    /// - If a span, [`new_span`] is called with the fully constructed span
+    ///
+    /// Note that this includes the entire lifecycle of an event, but for spans it only includes up
+    /// to the point when [`new_span`] is called.
+    ///
+    /// However, keep in mind that this process could end early (after nearly any of these steps,
+    /// in fact), and not necessarily as the result of an action taken by this subscriber.
+    /// Regardless of what point in the process the pass ends, [`on_end_pass`] will be called to
+    /// signal the end of the pass.
+    ///
+    /// [`register_callsite`]: Subscriber::register_callsite()
+    /// [`enabled`]: Subscriber::enabled()
+    /// [`ValueSet`]: crate::field::ValueSet
+    /// [`event_enabled`]: Subscriber::event_enabled()
+    /// [`new_span`]: Subscriber::new_span()
+    /// [`on_end_pass`]: Subscriber::on_end_pass()
+    fn on_begin_pass(&self) {}
+
+    /// Invoked when the event or span currently being constructed on the calling thread has just
+    /// finished or stopped being constructed.
+    ///
+    /// It's very important to note what "constructed" means in this context. See [`on_begin_pass`]
+    /// for more.
+    ///
+    /// "Finished" or "stopped" here could be for any reason, including:
+    ///
+    /// - This subscriber indicated its interest in the callsite as [`Interest::never`] when
+    ///   [`register_callsite`] was called.
+    /// - The event or span was not enabled by [`enabled`].
+    /// - The event was initially enabled based on its metadata but rejected by
+    ///   [`event_enabled`], so [`event`] wasn't called.
+    ///
+    ///
+    /// [`on_begin_pass`]: Subscriber::on_begin_pass()
+    /// [`register_callsite`]: Subscriber::register_callsite()
+    /// [`enabled`]: Subscriber::enabled()
+    /// [`event_enabled`]: Subscriber::event_enabled()
+    /// [`event`]: Subscriber::event()
+    fn on_end_pass(&self) {}
 
     /// Registers a new [callsite] with this subscriber, returning whether or not
     /// the subscriber is interested in being notified about the callsite.

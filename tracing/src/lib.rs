@@ -959,12 +959,12 @@ pub use self::{dispatcher::Dispatch, event::Event, field::Value, subscriber::Sub
 #[doc(hidden)]
 pub use self::span::Id;
 
+pub use tracing_core::{Level, Metadata, event};
 #[doc(hidden)]
 pub use tracing_core::{
     callsite::{self, Callsite},
     metadata,
 };
-pub use tracing_core::{event, Level, Metadata};
 
 #[doc(inline)]
 pub use self::span::Span;
@@ -987,7 +987,7 @@ pub mod subscriber;
 #[doc(hidden)]
 pub mod __macro_support {
     pub use crate::callsite::Callsite;
-    use crate::{subscriber::Interest, Metadata};
+    use crate::{Metadata, subscriber::Interest};
     use core::{fmt, str};
     // Re-export the `core` functions that are used in macros. This allows
     // a crate to be named `core` and avoid name clashes.
@@ -1003,6 +1003,14 @@ pub mod __macro_support {
     /// Breaking changes to this module may occur in small-numbered versions
     /// without warning.
     pub use tracing_core::callsite::DefaultCallsite as MacroCallsite;
+
+    pub fn __begin_pass() {
+        crate::dispatcher::get_default(|default| default.on_begin_pass())
+    }
+
+    pub fn __end_pass() {
+        crate::dispatcher::get_default(|default| default.on_end_pass())
+    }
 
     /// /!\ WARNING: This is *not* a stable API! /!\
     /// This function, and all code contained in the `__macro_support` module, is

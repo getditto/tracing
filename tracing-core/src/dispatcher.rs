@@ -126,9 +126,8 @@
 use core::ptr::addr_of;
 
 use crate::{
-    callsite, span,
+    Event, LevelFilter, Metadata, callsite, span,
     subscriber::{self, NoSubscriber, Subscriber},
-    Event, LevelFilter, Metadata,
 };
 
 use alloc::sync::{Arc, Weak};
@@ -579,6 +578,29 @@ impl Dispatch {
     #[inline]
     pub fn record_follows_from(&self, span: &span::Id, follows: &span::Id) {
         self.subscriber().record_follows_from(span, follows)
+    }
+
+    /// Records that an event or span is about to start being constructed on the calling thread.
+    ///
+    /// This calls the [`on_begin_pass`] function on the [`Subscriber`] that this `Dispatch`
+    /// forwards to.
+    ///
+    /// [`on_begin_pass`]: super::subscriber::Subscriber::on_begin_pass
+    /// [`Subscriber`]: super::subscriber::Subscriber
+    pub fn on_begin_pass(&self) {
+        self.subscriber().on_begin_pass();
+    }
+
+    /// Records that the event or span currently being constructed ont he calling thread has just
+    /// finished or stopped being constructed.
+    ///
+    /// This calls the [`on_end_pass`] function on the [`Subscriber`] that this `Dispatch`
+    /// forwards to.
+    ///
+    /// [`on_end_pass`]: super::subscriber::Subscriber::on_end_pass
+    /// [`Subscriber`]: super::subscriber::Subscriber
+    pub fn on_end_pass(&self) {
+        self.subscriber().on_end_pass();
     }
 
     /// Returns true if a span with the specified [metadata] would be
