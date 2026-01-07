@@ -39,7 +39,9 @@ use core::{
     marker::PhantomData,
     ops::Deref,
 };
-use std::{eprintln, thread_local, vec::Vec};
+#[cfg(debug_assertions)]
+use std::eprintln;
+use std::{thread_local, vec::Vec};
 use tracing_core::{
     Dispatch, Event, Metadata, span,
     subscriber::{Interest, Subscriber},
@@ -159,6 +161,7 @@ impl FilterState {
         }
 
         let mut outer = self.outer.borrow_mut();
+        #[cfg(debug_assertions)]
         if !outer.is_empty() {
             eprintln!("Reentrancy detected in per-layer filter!");
         }
