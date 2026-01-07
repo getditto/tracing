@@ -43,6 +43,8 @@ pub(crate) enum Expect {
     Visit(ExpectedSpan, ExpectedFields),
     NewSpan(NewSpan),
     OnRegisterDispatch,
+    OnBeginPass,
+    OnEndPass,
     Nothing,
 }
 
@@ -327,6 +329,14 @@ impl Expect {
             ),
             Expect::OnRegisterDispatch => panic!(
                 "\n[{}] expected on_register_dispatch to be called\n[{}] but instead {}",
+                name, name, what
+            ),
+            Expect::OnBeginPass => panic!(
+                "\n[{}] expected on_begin_pass to be called\n[{}] but instead {}",
+                name, name, what
+            ),
+            Expect::OnEndPass => panic!(
+                "\n[{}] expected on_end_pass to be called\n[{}] but instead {}",
                 name, name, what
             ),
             Expect::Nothing => panic!(

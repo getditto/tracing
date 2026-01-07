@@ -122,8 +122,8 @@ use std::{
 };
 
 use tracing_core::{
-    span::{Attributes, Id, Record},
     Event, Subscriber,
+    span::{Attributes, Id, Record},
 };
 use tracing_subscriber::{
     layer::{Context, Layer},
@@ -131,7 +131,7 @@ use tracing_subscriber::{
 };
 
 use crate::{
-    ancestry::{get_ancestry, ActualAncestry, HasAncestry},
+    ancestry::{ActualAncestry, HasAncestry, get_ancestry},
     event::ExpectedEvent,
     expect::Expect,
     span::{ActualSpan, ExpectedSpan, NewSpan},
@@ -718,6 +718,16 @@ impl MockLayerBuilder {
     /// [`Layer::on_register_dispatch`]: tracing_subscriber::layer::Layer::on_register_dispatch
     pub fn on_register_dispatch(mut self) -> Self {
         self.expected.push_back(Expect::OnRegisterDispatch);
+        self
+    }
+
+    pub fn on_begin_pass(mut self) -> Self {
+        self.expected.push_back(Expect::OnBeginPass);
+        self
+    }
+
+    pub fn on_end_pass(mut self) -> Self {
+        self.expected.push_back(Expect::OnEndPass);
         self
     }
 

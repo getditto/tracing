@@ -140,16 +140,16 @@
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
     },
     thread,
 };
 use tracing::{
+    Event, Metadata, Subscriber,
     level_filters::LevelFilter,
     span::{self, Attributes, Id},
     subscriber::Interest,
-    Event, Metadata, Subscriber,
 };
 
 use crate::{
@@ -885,6 +885,16 @@ where
         self
     }
 
+    pub fn on_begin_pass(mut self) -> Self {
+        self.expected.push_back(Expect::OnBeginPass);
+        self
+    }
+
+    pub fn on_end_pass(mut self) -> Self {
+        self.expected.push_back(Expect::OnEndPass);
+        self
+    }
+
     /// Filter the traces evaluated by the `MockSubscriber`.
     ///
     /// The filter will be applied to all traces received before
@@ -1088,6 +1098,22 @@ where
         println!("[{}] on_register_dispatch", self.name);
         let mut expected = self.expected.lock().unwrap();
         if let Some(Expect::OnRegisterDispatch) = expected.front() {
+            expected.pop_front();
+        }
+    }
+
+    fn on_begin_pass(&self) {
+        println!("[{}] on_begin_pass", self.name);
+        let mut expected = self.expected.lock().unwrap();
+        if let Some(Expect::OnBeginPass) = expected.front() {
+            expected.pop_front();
+        }
+    }
+
+    fn on_end_pass(&self) {
+        println!("[{}] on_end_pass", self.name);
+        let mut expected = self.expected.lock().unwrap();
+        if let Some(Expect::OnEndPass) = expected.front() {
             expected.pop_front();
         }
     }

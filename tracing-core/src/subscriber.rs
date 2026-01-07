@@ -773,6 +773,14 @@ where
         self.as_ref().register_callsite(metadata)
     }
 
+    fn on_begin_pass(&self) {
+        self.as_ref().on_begin_pass();
+    }
+
+    fn on_end_pass(&self) {
+        self.as_ref().on_end_pass();
+    }
+
     #[inline]
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         self.as_ref().enabled(metadata)
@@ -856,6 +864,14 @@ where
     #[inline]
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
         self.as_ref().register_callsite(metadata)
+    }
+
+    fn on_begin_pass(&self) {
+        self.as_ref().on_begin_pass();
+    }
+
+    fn on_end_pass(&self) {
+        self.as_ref().on_end_pass();
     }
 
     #[inline]

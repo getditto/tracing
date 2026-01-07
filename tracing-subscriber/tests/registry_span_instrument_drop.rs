@@ -42,6 +42,14 @@ fn span_entered_on_different_thread_from_subscriber() {
             self.inner.on_register_dispatch(subscriber);
         }
 
+        fn on_begin_pass(&self) {
+            self.inner.on_begin_pass();
+        }
+
+        fn on_end_pass(&self) {
+            self.inner.on_end_pass();
+        }
+
         fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
             self.inner.register_callsite(metadata)
         }
