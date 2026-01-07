@@ -135,6 +135,7 @@ pub trait Subscriber: 'static {
     /// [`event_enabled`]: Subscriber::event_enabled()
     /// [`new_span`]: Subscriber::new_span()
     /// [`on_end_pass`]: Subscriber::on_end_pass()
+    #[inline]
     fn on_begin_pass(&self) {}
 
     /// Invoked when the event or span currently being constructed on the calling thread has just
@@ -157,6 +158,7 @@ pub trait Subscriber: 'static {
     /// [`enabled`]: Subscriber::enabled()
     /// [`event_enabled`]: Subscriber::event_enabled()
     /// [`event`]: Subscriber::event()
+    #[inline]
     fn on_end_pass(&self) {}
 
     /// Registers a new [callsite] with this subscriber, returning whether or not

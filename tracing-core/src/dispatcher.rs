@@ -375,6 +375,7 @@ impl SetGlobalDefaultError {
 ///
 /// [dispatcher]: super::dispatcher::Dispatch
 #[cfg(feature = "std")]
+#[inline]
 pub fn get_default<T, F>(mut f: F) -> T
 where
     F: FnMut(&Dispatch) -> T,
@@ -587,6 +588,7 @@ impl Dispatch {
     ///
     /// [`on_begin_pass`]: super::subscriber::Subscriber::on_begin_pass
     /// [`Subscriber`]: super::subscriber::Subscriber
+    #[inline]
     pub fn on_begin_pass(&self) {
         self.subscriber().on_begin_pass();
     }
@@ -599,6 +601,7 @@ impl Dispatch {
     ///
     /// [`on_end_pass`]: super::subscriber::Subscriber::on_end_pass
     /// [`Subscriber`]: super::subscriber::Subscriber
+    #[inline]
     pub fn on_end_pass(&self) {
         self.subscriber().on_end_pass();
     }

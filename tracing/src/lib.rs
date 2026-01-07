@@ -1004,10 +1004,12 @@ pub mod __macro_support {
     /// without warning.
     pub use tracing_core::callsite::DefaultCallsite as MacroCallsite;
 
+    #[inline]
     pub fn __begin_pass() {
         crate::dispatcher::get_default(|default| default.on_begin_pass())
     }
 
+    #[inline]
     pub fn __end_pass() {
         crate::dispatcher::get_default(|default| default.on_end_pass())
     }
