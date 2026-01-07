@@ -97,11 +97,13 @@ where
     }
 
     #[cfg(feature = "registry")]
+    #[inline]
     fn on_begin_pass(&self) {
         filter::FilterState::begin_pass();
     }
 
     #[cfg(feature = "registry")]
+    #[inline]
     fn on_end_pass(&self) {
         filter::FilterState::end_pass();
     }

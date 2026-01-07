@@ -143,6 +143,7 @@ pub(crate) struct FilterState {
 }
 
 impl FilterState {
+    #[inline]
     fn push(&self) {
         let to_push = FilterStateFrame::new();
         self.current.enabled.swap(&to_push.enabled);
@@ -168,6 +169,7 @@ impl FilterState {
         outer.push(to_push);
     }
 
+    #[inline]
     fn pop(&self) {
         let mut outer = self.outer.borrow_mut();
         let to_pop = outer
@@ -1287,6 +1289,7 @@ impl FilterState {
         enabled
     }
 
+    #[inline]
     pub(crate) fn begin_pass() {
         // Drop the `Result` returned by `try_with` --- if we are in the middle
         // a panic and the thread-local has been torn down, that's fine, just
@@ -1296,6 +1299,7 @@ impl FilterState {
         });
     }
 
+    #[inline]
     pub(crate) fn end_pass() {
         // Drop the `Result` returned by `try_with` --- if we are in the middle
         // a panic and the thread-local has been torn down, that's fine, just
