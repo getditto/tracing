@@ -39,9 +39,13 @@ use core::{
     marker::PhantomData,
     ops::Deref,
 };
+#[cfg(feature = "smallvec")]
+use smallvec::SmallVec;
 #[cfg(debug_assertions)]
 use std::eprintln;
-use std::{thread_local, vec::Vec};
+use std::thread_local;
+#[cfg(not(feature = "smallvec"))]
+use std::vec::Vec;
 use tracing_core::{
     Dispatch, Event, Metadata, span,
     subscriber::{Interest, Subscriber},
@@ -139,8 +143,13 @@ impl FilterMap {
 #[derive(Debug)]
 pub(crate) struct FilterState {
     current: FilterStateFrame,
-    outer: RefCell<Vec<FilterStateFrame>>,
+    outer: RefCell<FilterStateStack>,
 }
+
+#[cfg(feature = "smallvec")]
+type FilterStateStack = SmallVec<[FilterStateFrame; 4]>;
+#[cfg(not(feature = "smallvec"))]
+type FilterStateStack = Vec<FilterStateFrame>;
 
 impl FilterState {
     #[inline]
@@ -242,7 +251,7 @@ impl DebugCounters {
 }
 
 thread_local! {
-    pub(crate) static FILTERING: FilterState = const { FilterState::new() };
+    pub(crate) static FILTERING: FilterState = FilterState::new();
 }
 
 /// Extension trait adding [combinators] for combining [`Filter`].
@@ -1165,10 +1174,10 @@ impl fmt::Binary for FilterMap {
 // === impl FilterState ===
 
 impl FilterState {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             current: FilterStateFrame::new(),
-            outer: RefCell::new(Vec::new()),
+            outer: RefCell::new(FilterStateStack::new()),
         }
     }
 
