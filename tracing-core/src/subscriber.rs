@@ -773,10 +773,12 @@ where
         self.as_ref().register_callsite(metadata)
     }
 
+    #[inline]
     fn on_begin_pass(&self) {
         self.as_ref().on_begin_pass();
     }
 
+    #[inline]
     fn on_end_pass(&self) {
         self.as_ref().on_end_pass();
     }
@@ -866,10 +868,12 @@ where
         self.as_ref().register_callsite(metadata)
     }
 
+    #[inline]
     fn on_begin_pass(&self) {
         self.as_ref().on_begin_pass();
     }
 
+    #[inline]
     fn on_end_pass(&self) {
         self.as_ref().on_end_pass();
     }

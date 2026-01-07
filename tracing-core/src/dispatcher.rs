@@ -406,7 +406,7 @@ where
 /// [dispatcher]: super::dispatcher::Dispatch
 #[cfg(feature = "std")]
 #[doc(hidden)]
-#[inline(never)]
+#[inline]
 pub fn get_current<T>(f: impl FnOnce(&Dispatch) -> T) -> Option<T> {
     if SCOPED_COUNT.load(Ordering::Acquire) == 0 {
         // fast path if no scoped dispatcher has been set; just use the global
