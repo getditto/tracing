@@ -988,6 +988,8 @@ pub mod subscriber;
 pub mod __macro_support {
     pub use crate::callsite::Callsite;
     use crate::{Metadata, subscriber::Interest};
+    #[cfg(feature = "std")]
+    use core::cell::Cell;
     use core::{fmt, str};
     // Re-export the `core` functions that are used in macros. This allows
     // a crate to be named `core` and avoid name clashes.
@@ -1004,14 +1006,33 @@ pub mod __macro_support {
     /// without warning.
     pub use tracing_core::callsite::DefaultCallsite as MacroCallsite;
 
+    #[cfg(feature = "std")]
+    std::thread_local! {
+        static PASS_DEPTH: Cell<usize> = const { Cell::new(0) };
+    }
+
     #[inline]
     pub fn __begin_pass() {
-        crate::dispatcher::get_default(|default| default.on_begin_pass())
+        #[cfg(feature = "std")]
+        PASS_DEPTH.with(|depth| {
+            let before = depth.get();
+            depth.set(before + 1);
+            if before > 0 {
+                let _ = tracing_core::dispatcher::get_current(|default| default.on_begin_pass());
+            }
+        });
     }
 
     #[inline]
     pub fn __end_pass() {
-        crate::dispatcher::get_default(|default| default.on_end_pass())
+        #[cfg(feature = "std")]
+        PASS_DEPTH.with(|depth| {
+            let before = depth.get();
+            depth.set(before - 1);
+            if before > 1 {
+                let _ = tracing_core::dispatcher::get_current(|default| default.on_end_pass());
+            }
+        });
     }
 
     /// /!\ WARNING: This is *not* a stable API! /!\
