@@ -7,8 +7,8 @@ use crate::{
 
 use std::fmt;
 use tracing_core::{
-    field::{self, Field},
     Event, Level, Subscriber,
+    field::{self, Field},
 };
 
 #[cfg(feature = "tracing-log")]
@@ -335,11 +335,10 @@ where
             }
 
             let ext = span.extensions();
-            let fields = &ext
-                .get::<FormattedFields<N>>()
-                .expect("Unable to find FormattedFields in extensions; this is a bug");
-            if !fields.is_empty() {
-                write!(writer, " {} {}", dimmed.paint("with"), fields)?;
+            if let Some(fields) = &ext.get::<FormattedFields<N>>() {
+                if !fields.is_empty() {
+                    write!(writer, " {} {}", dimmed.paint("with"), fields)?;
+                }
             }
             writer.write_char('\n')?;
         }
