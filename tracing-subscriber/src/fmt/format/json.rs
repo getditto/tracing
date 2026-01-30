@@ -14,9 +14,9 @@ use std::{
     fmt::{self, Write},
 };
 use tracing_core::{
+    Event, Subscriber,
     field::{self, Field},
     span::Record,
-    Event, Subscriber,
 };
 use tracing_serde::AsSerde;
 
@@ -161,50 +161,48 @@ where
         let mut serializer = serializer.serialize_map(None)?;
 
         let ext = self.0.extensions();
-        let data = ext
-            .get::<FormattedFields<N>>()
-            .expect("Unable to find FormattedFields in extensions; this is a bug");
-
-        // TODO: let's _not_ do this, but this resolves
-        // https://github.com/tokio-rs/tracing/issues/391.
-        // We should probably rework this to use a `serde_json::Value` or something
-        // similar in a JSON-specific layer, but I'd (david)
-        // rather have a uglier fix now rather than shipping broken JSON.
-        match serde_json::from_str::<serde_json::Value>(data) {
-            Ok(serde_json::Value::Object(fields)) => {
-                for field in fields {
-                    serializer.serialize_entry(&field.0, &field.1)?;
+        if let Some(data) = ext.get::<FormattedFields<N>>() {
+            // TODO: let's _not_ do this, but this resolves
+            // https://github.com/tokio-rs/tracing/issues/391.
+            // We should probably rework this to use a `serde_json::Value` or something
+            // similar in a JSON-specific layer, but I'd (david)
+            // rather have a uglier fix now rather than shipping broken JSON.
+            match serde_json::from_str::<serde_json::Value>(data) {
+                Ok(serde_json::Value::Object(fields)) => {
+                    for field in fields {
+                        serializer.serialize_entry(&field.0, &field.1)?;
+                    }
                 }
-            }
-            // We have fields for this span which are valid JSON but not an object.
-            // This is probably a bug, so panic if we're in debug mode
-            Ok(_) if cfg!(debug_assertions) => panic!(
-                "span '{}' had malformed fields! this is a bug.\n  error: invalid JSON object\n  fields: {:?}",
-                self.0.metadata().name(),
-                data
-            ),
-            // If we *aren't* in debug mode, it's probably best not to
-            // crash the program, let's log the field found but also an
-            // message saying it's type  is invalid
-            Ok(value) => {
-                serializer.serialize_entry("field", &value)?;
-                serializer.serialize_entry("field_error", "field was no a valid object")?
-            }
-            // We have previously recorded fields for this span
-            // should be valid JSON. However, they appear to *not*
-            // be valid JSON. This is almost certainly a bug, so
-            // panic if we're in debug mode
-            Err(e) if cfg!(debug_assertions) => panic!(
-                "span '{}' had malformed fields! this is a bug.\n  error: {}\n  fields: {:?}",
-                self.0.metadata().name(),
-                e,
-                data
-            ),
-            // If we *aren't* in debug mode, it's probably best not
-            // crash the program, but let's at least make sure it's clear
-            // that the fields are not supposed to be missing.
-            Err(e) => serializer.serialize_entry("field_error", &format!("{}", e))?,
-        };
+                // We have fields for this span which are valid JSON but not an object.
+                // This is probably a bug, so panic if we're in debug mode
+                Ok(_) if cfg!(debug_assertions) => panic!(
+                    "span '{}' had malformed fields! this is a bug.\n  error: invalid JSON object\n  fields: {:?}",
+                    self.0.metadata().name(),
+                    data
+                ),
+                // If we *aren't* in debug mode, it's probably best not to
+                // crash the program, let's log the field found but also an
+                // message saying it's type  is invalid
+                Ok(value) => {
+                    serializer.serialize_entry("field", &value)?;
+                    serializer.serialize_entry("field_error", "field was no a valid object")?
+                }
+                // We have previously recorded fields for this span
+                // should be valid JSON. However, they appear to *not*
+                // be valid JSON. This is almost certainly a bug, so
+                // panic if we're in debug mode
+                Err(e) if cfg!(debug_assertions) => panic!(
+                    "span '{}' had malformed fields! this is a bug.\n  error: {}\n  fields: {:?}",
+                    self.0.metadata().name(),
+                    e,
+                    data
+                ),
+                // If we *aren't* in debug mode, it's probably best not
+                // crash the program, but let's at least make sure it's clear
+                // that the fields are not supposed to be missing.
+                Err(e) => serializer.serialize_entry("field_error", &format!("{}", e))?,
+            };
+        }
         serializer.serialize_entry("name", self.0.metadata().name())?;
         serializer.end()
     }
@@ -544,7 +542,7 @@ impl<'a> field::Visit for JsonVisitor<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::fmt::{format::FmtSpan, test::MockMakeWriter, time::FormatTime, SubscriberBuilder};
+    use crate::fmt::{SubscriberBuilder, format::FmtSpan, test::MockMakeWriter, time::FormatTime};
     use tracing::{self, subscriber::with_default};
 
     use std::fmt;
@@ -563,8 +561,7 @@ mod test {
 
     #[test]
     fn json() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -587,11 +584,12 @@ mod test {
             .expect("path must be valid unicode")
             // escape windows backslashes
             .replace('\\', "\\\\");
-        let expected =
-            &format!("{}{}{}",
-                    "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"filename\":\"",
-                    current_path,
-                    "\",\"fields\":{\"message\":\"some json test\"}}\n");
+        let expected = &format!(
+            "{}{}{}",
+            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"filename\":\"",
+            current_path,
+            "\",\"fields\":{\"message\":\"some json test\"}}\n"
+        );
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -606,8 +604,7 @@ mod test {
 
     #[test]
     fn json_line_number() {
-        let expected =
-            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -622,8 +619,7 @@ mod test {
 
     #[test]
     fn json_flattened_event() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"message\":\"some json test\"}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"message\":\"some json test\"}\n";
 
         let subscriber = subscriber()
             .flatten_event(true)
@@ -638,8 +634,7 @@ mod test {
 
     #[test]
     fn json_disabled_current_span_event() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(false)
@@ -653,8 +648,7 @@ mod test {
 
     #[test]
     fn json_disabled_span_list_event() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -668,8 +662,7 @@ mod test {
 
     #[test]
     fn json_nested_span() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -690,8 +683,7 @@ mod test {
 
     #[test]
     fn json_no_span() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
