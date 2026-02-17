@@ -16,7 +16,7 @@
 //! tracing-subscriber = "0.3"
 //! ```
 //!
-//! *Compiler support: [requires `rustc` 1.63+][msrv]*
+//! *Compiler support: [requires `rustc` 1.65+][msrv]*
 //!
 //! [msrv]: super#supported-rust-versions
 //!
@@ -36,9 +36,9 @@
 //!
 //! For example:
 //! - Setting `RUST_LOG=debug` enables all `Span`s and `Event`s
-//!     set to the log level `DEBUG` or higher
+//!   set to the log level `DEBUG` or higher
 //! - Setting `RUST_LOG=my_crate=trace` enables `Span`s and `Event`s
-//!     in `my_crate` at all log levels
+//!   in `my_crate` at all log levels
 //!
 //! **Note**: This should **not** be called by libraries. Libraries should use
 //! [`tracing`] to publish `tracing` `Event`s.
@@ -189,7 +189,10 @@
 //!     https://docs.rs/tracing/latest/tracing/trait.Subscriber.html
 //! [`tracing`]: https://crates.io/crates/tracing
 //! [`fmt::format`]: mod@crate::fmt::format
-use std::{any::TypeId, error::Error, io};
+
+use alloc::boxed::Box;
+use core::any::TypeId;
+use std::{error::Error, io};
 use tracing_core::{span, subscriber::Interest, Event, Metadata};
 
 mod fmt_layer;
@@ -444,7 +447,7 @@ where
         if id == TypeId::of::<Self>() {
             Some(self as *const Self as *const ())
         } else {
-            self.inner.downcast_raw(id)
+            unsafe { self.inner.downcast_raw(id) }
         }
     }
 }
@@ -571,22 +574,22 @@ where
     /// The following options are available:
     ///
     /// - `FmtSpan::NONE`: No events will be synthesized when spans are
-    ///    created, entered, exited, or closed. Data from spans will still be
-    ///    included as the context for formatted events. This is the default.
+    ///   created, entered, exited, or closed. Data from spans will still be
+    ///   included as the context for formatted events. This is the default.
     /// - `FmtSpan::NEW`: An event will be synthesized when spans are created.
     /// - `FmtSpan::ENTER`: An event will be synthesized when spans are entered.
     /// - `FmtSpan::EXIT`: An event will be synthesized when spans are exited.
     /// - `FmtSpan::CLOSE`: An event will be synthesized when a span closes. If
-    ///    [timestamps are enabled][time] for this formatter, the generated
-    ///    event will contain fields with the span's _busy time_ (the total
-    ///    time for which it was entered) and _idle time_ (the total time that
-    ///    the span existed but was not entered).
+    ///   [timestamps are enabled][time] for this formatter, the generated
+    ///   event will contain fields with the span's _busy time_ (the total
+    ///   time for which it was entered) and _idle time_ (the total time that
+    ///   the span existed but was not entered).
     /// - `FmtSpan::ACTIVE`: An event will be synthesized when spans are entered
-    ///    or exited.
+    ///   or exited.
     /// - `FmtSpan::FULL`: Events will be synthesized whenever a span is
-    ///    created, entered, exited, or closed. If timestamps are enabled, the
-    ///    close event will contain the span's busy and idle time, as
-    ///    described above.
+    ///   created, entered, exited, or closed. If timestamps are enabled, the
+    ///   close event will contain the span's busy and idle time, as
+    ///   described above.
     ///
     /// The options can be enabled in any combination. For instance, the following
     /// will synthesize events whenever spans are created and closed:
@@ -628,8 +631,6 @@ where
     /// ANSI escape codes can ensure that they are not used, regardless of
     /// whether or not other crates in the dependency graph enable the "ansi"
     /// feature flag.
-    #[cfg(feature = "ansi")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ansi")))]
     pub fn with_ansi(self, ansi: bool) -> SubscriberBuilder<N, format::Format<L, T>, F, W> {
         SubscriberBuilder {
             inner: self.inner.with_ansi(ansi),
@@ -1199,7 +1200,7 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     #[cfg(not(feature = "env-filter"))]
     let subscriber = {
         use crate::{filter::Targets, layer::SubscriberExt};
-        use std::{env, str::FromStr};
+        use std::{env, eprintln, str::FromStr};
         let targets = match env::var("RUST_LOG") {
             Ok(var) => Targets::from_str(&var)
                 .map_err(|e| {
@@ -1258,6 +1259,7 @@ mod test {
             Subscriber,
         },
     };
+    use alloc::{borrow::ToOwned, string::String, vec::Vec};
     use std::{
         io,
         sync::{Arc, Mutex, MutexGuard, TryLockError},

@@ -1,9 +1,9 @@
 use std::{sync::mpsc, thread, time::Duration};
 use tracing::{
-    metadata::Metadata,
-    span,
-    subscriber::{self, Interest, Subscriber},
     Event,
+    metadata::Metadata,
+    span::{self},
+    subscriber::{self, Interest, Subscriber},
 };
 
 #[test]

@@ -58,7 +58,7 @@
 //! [`Subscriber`]: tracing_core::Subscriber
 //! [ctx]: crate::layer::Context
 //! [lookup]: crate::layer::Context::span()
-use tracing_core::{field::FieldSet, span::Id, Metadata};
+use tracing_core::{Metadata, field::FieldSet, span::Id};
 
 feature! {
     #![feature = "std"]
@@ -115,7 +115,7 @@ pub trait LookupSpan<'a> {
     /// should only implement `span_data`.
     ///
     /// [`span_data`]: LookupSpan::span_data()
-    fn span(&'a self, id: &Id) -> Option<SpanRef<'_, Self>>
+    fn span(&'a self, id: &Id) -> Option<SpanRef<'a, Self>>
     where
         Self: Sized,
     {
@@ -519,8 +519,14 @@ mod tests {
         prelude::*,
         registry::LookupSpan,
     };
-    use std::sync::{Arc, Mutex};
-    use tracing::{span, Subscriber};
+    use std::{
+        sync::{Arc, Mutex},
+        vec::Vec,
+    };
+    use tracing::{
+        Subscriber,
+        span::{self},
+    };
 
     #[test]
     fn spanref_scope_iteration_order() {

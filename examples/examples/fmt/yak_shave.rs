@@ -2,7 +2,8 @@ use snafu::{ResultExt, Snafu};
 use std::error::Error;
 use thiserror::Error;
 use tracing::{
-    debug_internal, error_internal, info_internal, span, trace_internal, warn_internal, Level,
+    Level, debug_internal, error_internal, info_internal, span_internal, trace_internal,
+    warn_internal,
 };
 
 // the `#[tracing::instrument]` attribute creates and enters a span

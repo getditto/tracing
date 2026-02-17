@@ -1,18 +1,21 @@
 #![deny(rust_2018_idioms)]
 
 use tracing::{
+    Event, Id, Level, Metadata,
     field::{Field, Visit},
-    info_internal, span,
+    info_internal,
+    span::{self},
+    span_internal,
     subscriber::{self, Subscriber},
-    warn_internal, Event, Id, Level, Metadata,
+    warn_internal,
 };
 
 use std::{
     collections::HashMap,
     fmt,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, RwLock, RwLockReadGuard,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -28,7 +31,7 @@ struct Count<'a> {
     counters: RwLockReadGuard<'a, HashMap<String, AtomicUsize>>,
 }
 
-impl<'a> Visit for Count<'a> {
+impl Visit for Count<'_> {
     fn record_i64(&mut self, field: &Field, value: i64) {
         if let Some(counter) = self.counters.get(field.name()) {
             if value > 0 {

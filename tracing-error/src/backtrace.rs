@@ -227,7 +227,7 @@ impl fmt::Debug for SpanTrace {
             fields: &'a str,
         }
 
-        impl<'a> fmt::Debug for DebugSpan<'a> {
+        impl fmt::Debug for DebugSpan<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(
                     f,
@@ -269,7 +269,7 @@ mod tests {
     use super::*;
     use crate::ErrorLayer;
     use tracing::subscriber::with_default;
-    use tracing::{span, Level};
+    use tracing::{Level, span_internal};
     use tracing_subscriber::{prelude::*, registry::Registry};
 
     #[test]

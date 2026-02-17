@@ -2,11 +2,11 @@
 
 use http::{Method, Request, Response, StatusCode};
 use hyper::{
-    service::{make_service_fn, service_fn},
     Body, Server,
+    service::{make_service_fn, service_fn},
 };
 use std::str;
-use tracing::{debug_internal, info_internal, span, Instrument as _, Level};
+use tracing::{Instrument as _, Level, debug_internal, info_internal, span_internal};
 
 async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     let span = span_internal!(

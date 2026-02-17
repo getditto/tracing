@@ -8,7 +8,7 @@
 /// cargo run --example tokio-spawny-thing
 /// ```
 use futures::future::try_join_all;
-use tracing::{debug_internal, info_internal, instrument, span, Instrument as _, Level};
+use tracing::{Instrument as _, Level, debug_internal, info_internal, instrument, span_internal};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 

@@ -25,11 +25,11 @@
 
 use bytes::Bytes;
 use futures::{
-    future::{self, Ready},
     Future,
+    future::{self, Ready},
 };
-use http::{header, Method, Request, Response, StatusCode};
-use hyper::{server::conn::AddrStream, Body, Client, Server};
+use http::{Method, Request, Response, StatusCode, header};
+use hyper::{Body, Client, Server, server::conn::AddrStream};
 use rand::Rng;
 use std::{
     error::Error,
@@ -42,8 +42,8 @@ use std::{
 use tokio::{time, try_join};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::{
-    self, debug_internal, error_internal, info_internal, info_span_internal, span, trace_internal,
-    warn_internal, Instrument as _, Level, Span,
+    self, Instrument as _, Level, Span, debug_internal, error_internal, info_internal,
+    info_span_internal, span_internal, trace_internal, warn_internal,
 };
 use tracing_subscriber::{filter::EnvFilter, reload::Handle};
 use tracing_tower::{request_span, request_span::make};

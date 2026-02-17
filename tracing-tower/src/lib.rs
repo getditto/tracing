@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg), deny(rustdoc::broken_intra_doc_links))]
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/tokio-rs/tracing/master/assets/logo-type.png",
+    html_logo_url = "https://raw.githubusercontent.com/tokio-rs/tracing/main/assets/logo-type.png",
+    html_favicon_url = "https://raw.githubusercontent.com/tokio-rs/tracing/main/assets/favicon.ico",
     issue_tracker_base_url = "https://github.com/tokio-rs/tracing/issues/"
 )]
 #![warn(
@@ -70,32 +71,7 @@ where
     }
 }
 
-#[cfg(feature = "tower-util")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tower-util")))]
-pub trait InstrumentMake<T, R>
-where
-    Self: tower_util::MakeService<T, R> + Sized,
-{
-    fn with_traced_service<G>(self, get_span: G) -> service_span::MakeService<Self, T, R, G>
-    where
-        G: GetSpan<T>,
-    {
-        service_span::MakeService::new(self, get_span)
-    }
-
-    fn with_traced_requests<G>(self, get_span: G) -> request_span::MakeService<Self, R, G>
-    where
-        G: GetSpan<R> + Clone,
-    {
-        request_span::MakeService::new(self, get_span)
-    }
-}
-
 impl<S, R> InstrumentableService<R> for S where S: Service<R> + Sized {}
-
-#[cfg(feature = "tower-util")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tower-util")))]
-impl<M, T, R> InstrumentMake<T, R> for M where M: tower_util::MakeService<T, R> {}
 
 pub trait GetSpan<T>: crate::sealed::Sealed<T> {
     fn span_for(&self, target: &T) -> tracing::Span;

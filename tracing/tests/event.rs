@@ -7,11 +7,11 @@
 #![cfg(feature = "std")]
 
 use tracing::{
-    debug_internal, error_internal,
+    Level, debug_internal, error_internal,
     field::{debug, display},
     info_internal,
     subscriber::with_default,
-    trace_internal, warn_internal, Level,
+    trace_internal, warn_internal,
 };
 use tracing_mock::*;
 
@@ -36,7 +36,7 @@ macro_rules! event_without_message {
                 .run_with_handle();
 
             with_default(subscriber, || {
-                info!(
+                info_internal!(
                     answer = $e,
                     to_question = "life, the universe, and everything"
                 );
@@ -86,7 +86,7 @@ fn message_without_delims() {
                     .and(
                         expect::field("question").with_value(&"life, the universe, and everything"),
                     )
-                    .and(field::msg(format_args!(
+                    .and(expect::msg(format_args!(
                         "hello from my event! tricky? {:?}!",
                         true
                     )))
@@ -115,7 +115,7 @@ fn string_message_without_delims() {
                     .and(
                         expect::field("question").with_value(&"life, the universe, and everything"),
                     )
-                    .and(field::msg(format_args!("hello from my event")))
+                    .and(expect::msg(format_args!("hello from my event")))
                     .only(),
             ),
         )
@@ -338,7 +338,7 @@ fn both_shorthands() {
 fn explicit_child() {
     let (subscriber, handle) = subscriber::mock()
         .new_span(expect::span().named("foo"))
-        .event(expect::event().with_explicit_parent(Some("foo")))
+        .event(expect::event().with_ancestry(expect::has_explicit_parent("foo")))
         .only()
         .run_with_handle();
 
@@ -355,11 +355,11 @@ fn explicit_child() {
 fn explicit_child_at_levels() {
     let (subscriber, handle) = subscriber::mock()
         .new_span(expect::span().named("foo"))
-        .event(expect::event().with_explicit_parent(Some("foo")))
-        .event(expect::event().with_explicit_parent(Some("foo")))
-        .event(expect::event().with_explicit_parent(Some("foo")))
-        .event(expect::event().with_explicit_parent(Some("foo")))
-        .event(expect::event().with_explicit_parent(Some("foo")))
+        .event(expect::event().with_ancestry(expect::has_explicit_parent("foo")))
+        .event(expect::event().with_ancestry(expect::has_explicit_parent("foo")))
+        .event(expect::event().with_ancestry(expect::has_explicit_parent("foo")))
+        .event(expect::event().with_ancestry(expect::has_explicit_parent("foo")))
+        .event(expect::event().with_ancestry(expect::has_explicit_parent("foo")))
         .only()
         .run_with_handle();
 
@@ -527,6 +527,12 @@ fn constant_field_name() {
     let (subscriber, handle) = subscriber::mock()
         .event(expect_event())
         .event(expect_event())
+        .event(expect_event())
+        .event(expect_event())
+        .event(expect_event())
+        .event(expect_event())
+        .event(expect_event())
+        .event(expect_event())
         .only()
         .run_with_handle();
 
@@ -548,7 +554,79 @@ fn constant_field_name() {
             },
             "quux"
         );
+        tracing::info_internal!(
+            { std::convert::identity(FOO) } = "bar",
+            { "constant string" } = "also works",
+            foo.bar = "baz",
+            "quux"
+        );
+        tracing::info_internal!(
+            {
+                { std::convert::identity(FOO) } = "bar",
+                { "constant string" } = "also works",
+                foo.bar = "baz",
+            },
+            "quux"
+        );
+        tracing::event_internal!(
+            Level::INFO,
+            { std::convert::identity(FOO) } = "bar",
+            { "constant string" } = "also works",
+            foo.bar = "baz",
+            "{}",
+            "quux"
+        );
+        tracing::event_internal!(
+            Level::INFO,
+            {
+                { std::convert::identity(FOO) } = "bar",
+                { "constant string" } = "also works",
+                foo.bar = "baz",
+            },
+            "{}",
+            "quux"
+        );
+        tracing::info_internal!(
+            { std::convert::identity(FOO) } = "bar",
+            { "constant string" } = "also works",
+            foo.bar = "baz",
+            "{}",
+            "quux"
+        );
+        tracing::info_internal!(
+            {
+                { std::convert::identity(FOO) } = "bar",
+                { "constant string" } = "also works",
+                foo.bar = "baz",
+            },
+            "{}",
+            "quux"
+        );
     });
 
+    handle.assert_finished();
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[test]
+fn keyword_ident_in_field_name() {
+    let (subscriber, handle) = subscriber::mock()
+        .event(expect::event().with_fields(expect::field("crate").with_value(&"tracing")))
+        .only()
+        .run_with_handle();
+
+    with_default(subscriber, || error_internal!(crate = "tracing", "message"));
+    handle.assert_finished();
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[test]
+fn raw_ident_in_field_name() {
+    let (subscriber, handle) = subscriber::mock()
+        .event(expect::event().with_fields(expect::field("this.type").with_value(&"Value")))
+        .only()
+        .run_with_handle();
+
+    with_default(subscriber, || error_internal!(this.r#type = "Value"));
     handle.assert_finished();
 }

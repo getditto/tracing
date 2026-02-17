@@ -1,6 +1,6 @@
 use std::thread::sleep;
 use std::time::Duration;
-use tracing::{span, Level};
+use tracing::{Level, span_internal};
 use tracing_flame::FlameLayer;
 use tracing_subscriber::{prelude::*, registry::Registry};
 

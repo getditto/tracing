@@ -12,7 +12,7 @@
 //! [`slog` README]: https://github.com/slog-rs/slog#terminal-output-example
 #![deny(rust_2018_idioms)]
 
-use tracing::{debug_internal, info_internal, span, warn_internal, Level};
+use tracing::{Level, debug_internal, info_internal, span_internal, warn_internal};
 
 mod sloggish_subscriber;
 use self::sloggish_subscriber::SloggishSubscriber;

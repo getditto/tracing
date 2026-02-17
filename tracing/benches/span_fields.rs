@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use tracing::{span, Level};
+use criterion::{Criterion, criterion_group, criterion_main};
+use tracing::{Level, span_internal};
 
 mod shared;
 

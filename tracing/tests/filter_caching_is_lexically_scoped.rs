@@ -7,12 +7,12 @@
 #[cfg(not(feature = "std"))]
 extern crate std;
 
-use tracing::{span, Level};
+use tracing::{Level, span_internal};
 use tracing_mock::*;
 
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

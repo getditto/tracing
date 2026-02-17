@@ -1,7 +1,7 @@
 use crate::fmt::format::Writer;
 use crate::fmt::time::FormatTime;
 
-use std::sync::Arc;
+use alloc::{format, string::String, sync::Arc};
 
 /// Formats [local time]s and [UTC time]s with `FormatTime` implementations
 /// that use the [`chrono` crate].
@@ -108,18 +108,13 @@ impl FormatTime for ChronoUtc {
 /// the supported syntax.
 ///
 /// [`chrono::format::strftime`]: https://docs.rs/chrono/0.4.9/chrono/format/strftime/index.html
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 enum ChronoFmtType {
     /// Format according to the RFC 3339 convention.
+    #[default]
     Rfc3339,
     /// Format according to a custom format string.
     Custom(String),
-}
-
-impl Default for ChronoFmtType {
-    fn default() -> Self {
-        ChronoFmtType::Rfc3339
-    }
 }
 
 #[cfg(test)]
@@ -127,7 +122,7 @@ mod tests {
     use crate::fmt::format::Writer;
     use crate::fmt::time::FormatTime;
 
-    use std::sync::Arc;
+    use alloc::{borrow::ToOwned, string::String, sync::Arc};
 
     use super::ChronoFmtType;
     use super::ChronoLocal;
