@@ -921,4 +921,13 @@ mod tests {
             state.assert_closed_in_order(["child", "parent", "grandparent"]);
         });
     }
+
+    #[cfg(feature = "large-thread-count")]
+    #[test]
+    fn large_thread_count_raises_max_threads() {
+        assert_eq!(SlabConfig::MAX_THREADS, 131_072);
+        // Confirm the registry pool is parameterised on SlabConfig at the type
+        // level — this is a compile-time check dressed as a runtime test.
+        let _: &Pool<DataInner, SlabConfig> = &Pool::new();
+    }
 }
