@@ -151,7 +151,7 @@ struct DataInner {
 impl Default for Registry {
     fn default() -> Self {
         Self {
-            spans: Pool::new(),
+            spans: Pool::new_with_config::<SlabConfig>(),
             current_spans: ThreadLocal::new(),
             next_filter_id: 0,
         }
@@ -928,6 +928,6 @@ mod tests {
         assert_eq!(SlabConfig::MAX_THREADS, 131_072);
         // Confirm the registry pool is parameterised on SlabConfig at the type
         // level — this is a compile-time check dressed as a runtime test.
-        let _: &Pool<DataInner, SlabConfig> = &Pool::new();
+        let _: &Pool<DataInner, SlabConfig> = &Pool::new_with_config::<SlabConfig>();
     }
 }
