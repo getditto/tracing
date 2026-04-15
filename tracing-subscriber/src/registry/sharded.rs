@@ -2,17 +2,15 @@ use sharded_slab::{pool::Ref, Clear, Config, Pool};
 
 /// Custom [`sharded_slab::Config`] for the span registry pool.
 ///
-/// When the `large-thread-count` feature is enabled, `MAX_THREADS` is raised
-/// from the upstream default of 4 096 to 131 072, preventing panics on
-/// high-core machines where large numbers of native threads are spawned.
-/// When the feature is disabled the trait default (4 096) is used unchanged.
+/// Raises `MAX_THREADS` from the upstream default of 4 096 to 131 072,
+/// preventing panics on high-core machines (e.g. HyDRA load-gen nodes) where
+/// large numbers of native threads are spawned.
 #[derive(Debug)]
 struct SlabConfig;
 
 impl Config for SlabConfig {
-    /// 131 072 threads = 2^17. Only active with the `large-thread-count`
-    /// feature; otherwise falls back to the trait default of 4 096.
-    #[cfg(feature = "large-thread-count")]
+    /// 131 072 threads = 2^17. Raised from the upstream default of 4 096 to
+    /// prevent `sharded_slab` panics on high-core machines.
     const MAX_THREADS: usize = 131_072;
 }
 use thread_local::ThreadLocal;
@@ -922,9 +920,8 @@ mod tests {
         });
     }
 
-    #[cfg(feature = "large-thread-count")]
     #[test]
-    fn large_thread_count_raises_max_threads() {
+    fn slab_config_raises_max_threads() {
         assert_eq!(SlabConfig::MAX_THREADS, 131_072);
         // Confirm the registry pool is parameterised on SlabConfig at the type
         // level — this is a compile-time check dressed as a runtime test.
