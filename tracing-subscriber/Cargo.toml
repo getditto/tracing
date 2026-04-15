@@ -31,9 +31,6 @@ env-filter = ["matchers", "regex", "once_cell", "tracing", "std", "thread_local"
 fmt = ["registry", "std"]
 ansi = ["fmt", "nu-ansi-term"]
 registry = ["sharded-slab", "thread_local", "std"]
-# Raises the sharded-slab MAX_THREADS limit from 4 096 to 131 072.
-# Enable on high-core nodes where many native threads are spawned.
-large-thread-count = []
 json = ["tracing-serde", "serde", "serde_json"]
 valuable = ["tracing-core/valuable", "valuable_crate", "valuable-serde", "tracing-serde/valuable"]
 # Enables support for local time when using the `time` crate timestamp
