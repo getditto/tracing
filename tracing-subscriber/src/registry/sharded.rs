@@ -10,9 +10,11 @@ use sharded_slab::{pool::Ref, Clear, Config, Pool};
 struct SlabConfig;
 
 impl Config for SlabConfig {
-    /// When the `large-thread-count` feature is enabled: 131 072 threads = 2^17.
-    /// Otherwise falls back to the `sharded_slab` default of 4 096.
-    #[cfg(feature = "large-thread-count")]
+    /// When the `large-thread-count` feature is enabled on a 64-bit target:
+    /// 131 072 threads = 2^17. On 32-bit targets (e.g. wasm32) the raised value
+    /// would overflow `sharded_slab`'s bit-packing arithmetic, so the default
+    /// of 4 096 is retained there regardless of the feature flag.
+    #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
     const MAX_THREADS: usize = 131_072;
 }
 use thread_local::ThreadLocal;
@@ -923,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "large-thread-count")]
+    #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
     fn slab_config_raises_max_threads() {
         assert_eq!(SlabConfig::MAX_THREADS, 131_072);
         // Confirm the registry pool is parameterised on SlabConfig at the type
