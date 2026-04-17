@@ -928,8 +928,10 @@ mod tests {
     #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
     fn slab_config_raises_max_threads() {
         assert_eq!(SlabConfig::MAX_THREADS, 131_072);
-        // Confirm the registry pool is parameterised on SlabConfig at the type
-        // level — this is a compile-time check dressed as a runtime test.
-        let _: &Pool<DataInner, SlabConfig> = &Pool::new_with_config::<SlabConfig>();
+        // Confirm the Registry pool is actually parameterised on SlabConfig —
+        // this is a compile-time check: if `Registry::spans` ever changes to a
+        // different Config type, the type annotation below will fail to compile.
+        let registry = Registry::default();
+        let _: &Pool<DataInner, SlabConfig> = &registry.spans;
     }
 }
