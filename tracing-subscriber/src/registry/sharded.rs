@@ -1,22 +1,4 @@
 use sharded_slab::{pool::Ref, Clear, Config, Pool};
-
-/// Custom [`sharded_slab::Config`] for the span registry pool.
-///
-/// When the `large-thread-count` feature is enabled, `MAX_THREADS` is raised
-/// from the upstream default of 4 096 to 131 072, preventing panics on
-/// high-core machines (e.g. HyDRA load-gen nodes) where large numbers of
-/// native threads are spawned.
-#[derive(Debug)]
-struct SlabConfig;
-
-impl Config for SlabConfig {
-    /// When the `large-thread-count` feature is enabled on a 64-bit target:
-    /// 131 072 threads = 2^17. On 32-bit targets (e.g. wasm32) the raised value
-    /// would overflow `sharded_slab`'s bit-packing arithmetic, so the default
-    /// of 4 096 is retained there regardless of the feature flag.
-    #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
-    const MAX_THREADS: usize = 131_072;
-}
 use thread_local::ThreadLocal;
 
 use super::stack::SpanStack;
@@ -37,6 +19,24 @@ use tracing_core::{
     span::{self, Current, Id},
     Event, Interest, Metadata, Subscriber,
 };
+
+/// Custom [`sharded_slab::Config`] for the span registry pool.
+///
+/// When the `large-thread-count` feature is enabled, `MAX_THREADS` is raised
+/// from the upstream default of 4 096 to 131 072, preventing panics on
+/// high-core machines (e.g. HyDRA load-gen nodes) where large numbers of
+/// native threads are spawned.
+#[derive(Debug)]
+struct SlabConfig;
+
+impl Config for SlabConfig {
+    /// When the `large-thread-count` feature is enabled on a 64-bit target:
+    /// 131 072 threads = 2^17. On 32-bit targets (e.g. wasm32) the raised value
+    /// would overflow `sharded_slab`'s bit-packing arithmetic, so the default
+    /// of 4 096 is retained there regardless of the feature flag.
+    #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
+    const MAX_THREADS: usize = 131_072;
+}
 
 /// A shared, reusable store for spans.
 ///
