@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+
 use tracing_subscriber::fmt::{FmtTarget, MakeWriter};
 
 /// Shared test writer that collects output for verification
@@ -68,19 +69,9 @@ fn test_error_ansi_escaping() {
     tracing::subscriber::with_default(subscriber, || {
         let malicious_error = MaliciousError("\x1b]0;PWNED\x07\x1b[2J\x08\x0c\x7f");
 
-<<<<<<< mpxzwvzk 5b6e8cb2 "Merge branch 'tracing-subscriber-0.3.22' into remove-formattedfields-expect-0.3.22"
-        // This demonstrates that errors are logged - the actual escaping
-        // is tested by our internal unit tests
-        tracing::error_internal!(error = %malicious_error, "An error occurred");
-||||||| qrypvsyv cc44064b "chore: prepare tracing-subscriber 0.3.22 (#3428)"
-        // This demonstrates that errors are logged - the actual escaping
-        // is tested by our internal unit tests
-        tracing::error!(error = %malicious_error, "An error occurred");
-=======
         // Log the error as part of the message so it goes through the
         // message sanitization path (not just Debug field formatting).
-        tracing::error!("An error occurred: {}", malicious_error);
->>>>>>> pnqrtqws 54ede4d5 "chore: prepare tracing-subscriber 0.3.23 (#3490)"
+        tracing::error_internal!("An error occurred: {}", malicious_error);
     });
 
     let output = writer.get_output();
@@ -165,7 +156,7 @@ fn test_json_ansi_escaping() {
     );
 }
 
-/// Test that pretty formatter properly escapes ANSI sequences  
+/// Test that pretty formatter properly escapes ANSI sequences
 #[cfg(feature = "ansi")]
 #[test]
 fn test_pretty_ansi_escaping() {

@@ -629,8 +629,6 @@ fn record_all_macro_records_new_values_for_fields() {
             expect::span().named("foo"),
             expect::field("bar")
                 .with_value(&5)
-<<<<<<< mpxzwvzk 5b6e8cb2 "Merge branch 'tracing-subscriber-0.3.22' into remove-formattedfields-expect-0.3.22"
-                .and(expect::field("baz").with_value(&"BAZ"))
                 .and(expect::field("qux").with_value(&display("qux")))
                 .and(expect::field("quux").with_value(&debug("QuuX")))
                 .only(),
@@ -643,49 +641,6 @@ fn record_all_macro_records_new_values_for_fields() {
 
     with_default(subscriber, || {
         let span = tracing::span_internal!(
-            Level::TRACE,
-            "foo",
-            bar = 1,
-            baz = 2,
-            qux = Empty,
-            quux = Empty
-        );
-        record_all!(span, bar = 5, baz = "BAZ", qux = %"qux", quux = ?"QuuX");
-||||||| qrypvsyv cc44064b "chore: prepare tracing-subscriber 0.3.22 (#3428)"
-                .and(expect::field("baz").with_value(&"BAZ"))
-                .and(expect::field("qux").with_value(&display("qux")))
-                .and(expect::field("quux").with_value(&debug("QuuX")))
-                .only(),
-        )
-        .enter(expect::span().named("foo"))
-        .exit(expect::span().named("foo"))
-        .drop_span(expect::span().named("foo"))
-        .only()
-        .run_with_handle();
-
-    with_default(subscriber, || {
-        let span = tracing::span!(
-            Level::TRACE,
-            "foo",
-            bar = 1,
-            baz = 2,
-            qux = Empty,
-            quux = Empty
-        );
-        record_all!(span, bar = 5, baz = "BAZ", qux = %"qux", quux = ?"QuuX");
-=======
-                .and(expect::field("qux").with_value(&display("qux")))
-                .and(expect::field("quux").with_value(&debug("QuuX")))
-                .only(),
-        )
-        .enter(expect::span().named("foo"))
-        .exit(expect::span().named("foo"))
-        .drop_span(expect::span().named("foo"))
-        .only()
-        .run_with_handle();
-
-    with_default(subscriber, || {
-        let span = tracing::span!(
             Level::TRACE,
             "foo",
             bar = 1,
@@ -725,7 +680,7 @@ fn record_all_macro_records_all_fields() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let span = tracing::span!(
+        let span = tracing::span_internal!(
             Level::TRACE,
             "foo",
             bar = 1,
@@ -765,7 +720,7 @@ fn record_all_macro_records_all_fields_different_order() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let span = tracing::span!(
+        let span = tracing::span_internal!(
             Level::TRACE,
             "foo",
             bar = 1,
@@ -800,7 +755,7 @@ fn record_all_macro_unknown_field() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let span = tracing::span!(
+        let span = tracing::span_internal!(
             Level::TRACE,
             "foo",
             bar = 1,
@@ -809,7 +764,6 @@ fn record_all_macro_unknown_field() {
             quux = Empty
         );
         record_all!(span, unknown = "unknown");
->>>>>>> pnqrtqws 54ede4d5 "chore: prepare tracing-subscriber 0.3.23 (#3490)"
         span.in_scope(|| {})
     });
 
