@@ -8,12 +8,14 @@ use crate::{
     },
     registry::LookupSpan,
 };
-use serde::ser::{SerializeMap, Serializer as _};
-use serde_json::Serializer;
-use std::{
+use alloc::{
     collections::BTreeMap,
     fmt::{self, Write},
+    format,
+    string::String,
 };
+use serde::ser::{SerializeMap, Serializer as _};
+use serde_json::Serializer;
 use tracing_core::{
     field::{self, Field},
     span::Record,
@@ -61,11 +63,11 @@ use tracing_log::NormalizeEvent;
 /// output JSON objects:
 ///
 /// - [`Json::flatten_event`] can be used to enable flattening event fields into
-/// the root
+///   the root
 /// - [`Json::with_current_span`] can be used to control logging of the current
-/// span
+///   span
 /// - [`Json::with_span_list`] can be used to control logging of the span list
-/// object.
+///   object.
 ///
 /// By default, event fields are not flattened, and both current span and span
 /// list are logged.
@@ -120,7 +122,7 @@ where
     Span: Subscriber + for<'lookup> crate::registry::LookupSpan<'lookup>,
     N: for<'writer> FormatFields<'writer> + 'static;
 
-impl<'a, 'b, Span, N> serde::ser::Serialize for SerializableContext<'a, 'b, Span, N>
+impl<Span, N> serde::ser::Serialize for SerializableContext<'_, '_, Span, N>
 where
     Span: Subscriber + for<'lookup> crate::registry::LookupSpan<'lookup>,
     N: for<'writer> FormatFields<'writer> + 'static,
@@ -150,7 +152,7 @@ where
     Span: for<'lookup> crate::registry::LookupSpan<'lookup>,
     N: for<'writer> FormatFields<'writer> + 'static;
 
-impl<'a, 'b, Span, N> serde::ser::Serialize for SerializableSpan<'a, 'b, Span, N>
+impl<Span, N> serde::ser::Serialize for SerializableSpan<'_, '_, Span, N>
 where
     Span: for<'lookup> crate::registry::LookupSpan<'lookup>,
     N: for<'writer> FormatFields<'writer> + 'static,
@@ -435,7 +437,7 @@ pub struct JsonVisitor<'a> {
     writer: &'a mut dyn Write,
 }
 
-impl<'a> fmt::Debug for JsonVisitor<'a> {
+impl fmt::Debug for JsonVisitor<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("JsonVisitor {{ values: {:?} }}", self.values))
     }
@@ -456,13 +458,13 @@ impl<'a> JsonVisitor<'a> {
     }
 }
 
-impl<'a> crate::field::VisitFmt for JsonVisitor<'a> {
+impl crate::field::VisitFmt for JsonVisitor<'_> {
     fn writer(&mut self) -> &mut dyn fmt::Write {
         self.writer
     }
 }
 
-impl<'a> crate::field::VisitOutput<fmt::Result> for JsonVisitor<'a> {
+impl crate::field::VisitOutput<fmt::Result> for JsonVisitor<'_> {
     fn finish(self) -> fmt::Result {
         let inner = || {
             let mut serializer = Serializer::new(WriteAdaptor::new(self.writer));
@@ -483,7 +485,7 @@ impl<'a> crate::field::VisitOutput<fmt::Result> for JsonVisitor<'a> {
     }
 }
 
-impl<'a> field::Visit for JsonVisitor<'a> {
+impl field::Visit for JsonVisitor<'_> {
     #[cfg(all(tracing_unstable, feature = "valuable"))]
     fn record_value(&mut self, field: &Field, value: valuable_crate::Value<'_>) {
         let value = match serde_json::to_value(valuable_serde::Serializable::new(value)) {
@@ -534,6 +536,11 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             .insert(field.name(), serde_json::Value::from(value));
     }
 
+    fn record_bytes(&mut self, field: &Field, value: &[u8]) {
+        self.values
+            .insert(field.name(), serde_json::Value::from(value));
+    }
+
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         match field.name() {
             // Skip fields that are actually log metadata that have already been handled
@@ -573,13 +580,19 @@ mod test {
     #[test]
     fn json() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let subscriber = subscriber()
             .flatten_event(false)
             .with_current_span(true)
             .with_span_list(true);
         test_json(expected, subscriber, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let span = tracing::span!(
+                tracing::Level::INFO,
+                "json_span",
+                answer = 42,
+                number = 3,
+                slice = &b"abc"[..]
+            );
             let _guard = span.enter();
             tracing::info!("some json test");
         });

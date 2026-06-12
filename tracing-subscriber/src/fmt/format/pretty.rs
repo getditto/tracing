@@ -451,7 +451,7 @@ impl<'a> PrettyVisitor<'a> {
     }
 }
 
-impl<'a> field::Visit for PrettyVisitor<'a> {
+impl field::Visit for PrettyVisitor<'_> {
     fn record_str(&mut self, field: &Field, value: &str) {
         if self.result.is_err() {
             return;
@@ -471,7 +471,7 @@ impl<'a> field::Visit for PrettyVisitor<'a> {
                 field,
                 &format_args!(
                     "{}, {}{}.sources{}: {}",
-                    value,
+                    Escape(&format_args!("{}", value)),
                     bold.prefix(),
                     field,
                     bold.infix(self.style),
@@ -479,7 +479,7 @@ impl<'a> field::Visit for PrettyVisitor<'a> {
                 ),
             )
         } else {
-            self.record_debug(field, &format_args!("{}", value))
+            self.record_debug(field, &Escape(&format_args!("{}", value)))
         }
     }
 
@@ -489,7 +489,10 @@ impl<'a> field::Visit for PrettyVisitor<'a> {
         }
         let bold = self.bold();
         match field.name() {
-            "message" => self.write_padded(&format_args!("{}{:?}", self.style.prefix(), value,)),
+            "message" => {
+                // Escape ANSI characters to prevent malicious patterns (e.g., terminal injection attacks)
+                self.write_padded(&format_args!("{}{:?}", self.style.prefix(), Escape(value)))
+            },
             // Skip fields that are actually log metadata that have already been handled
             #[cfg(feature = "tracing-log")]
             name if name.starts_with("log.") => self.result = Ok(()),
@@ -511,14 +514,14 @@ impl<'a> field::Visit for PrettyVisitor<'a> {
     }
 }
 
-impl<'a> VisitOutput<fmt::Result> for PrettyVisitor<'a> {
+impl VisitOutput<fmt::Result> for PrettyVisitor<'_> {
     fn finish(mut self) -> fmt::Result {
         write!(&mut self.writer, "{}", self.style.suffix())?;
         self.result
     }
 }
 
-impl<'a> VisitFmt for PrettyVisitor<'a> {
+impl VisitFmt for PrettyVisitor<'_> {
     fn writer(&mut self) -> &mut dyn fmt::Write {
         &mut self.writer
     }

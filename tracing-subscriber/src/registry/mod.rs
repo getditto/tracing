@@ -115,7 +115,7 @@ pub trait LookupSpan<'a> {
     /// should only implement `span_data`.
     ///
     /// [`span_data`]: LookupSpan::span_data()
-    fn span(&'a self, id: &Id) -> Option<SpanRef<'_, Self>>
+    fn span(&'a self, id: &Id) -> Option<SpanRef<'a, Self>>
     where
         Self: Sized,
     {
@@ -519,7 +519,10 @@ mod tests {
         prelude::*,
         registry::LookupSpan,
     };
-    use std::sync::{Arc, Mutex};
+    use std::{
+        sync::{Arc, Mutex},
+        vec::Vec,
+    };
     use tracing::{span, Subscriber};
 
     #[test]
