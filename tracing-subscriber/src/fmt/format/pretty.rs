@@ -210,7 +210,20 @@ where
             )?;
         }
 
-        if self.display_target {
+        // The string, if any, that we'll be printing for the target.
+        let target_output = match self.display_target {
+            FmtTarget::Full => Some(meta.target()),
+            FmtTarget::Shortened => {
+                let target = meta.target();
+                let target_start = target
+                    .split_once(':')
+                    .map_or_else(|| target, |split| split.0);
+                Some(target_start)
+            }
+            FmtTarget::Off => None,
+        };
+
+        if let Some(target) = target_output {
             let target_style = if writer.has_ansi_escapes() {
                 style.bold()
             } else {
@@ -220,10 +233,11 @@ where
                 writer,
                 "{}{}{}:",
                 target_style.prefix(),
-                meta.target(),
+                target,
                 target_style.infix(style)
             )?;
         }
+
         let line_number = if self.display_line_number {
             meta.line()
         } else {
@@ -303,7 +317,7 @@ where
 
         for span in scope {
             let meta = span.metadata();
-            if self.display_target {
+            if target_output.is_some() {
                 write!(
                     writer,
                     "    {} {}::{}",
