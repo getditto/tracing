@@ -4,10 +4,10 @@ use crate::{
     layer::{self, Context},
     registry::{self, LookupSpan, SpanRef},
 };
+use alloc::{fmt, format, string::String};
+use core::{any::TypeId, marker::PhantomData, ops::Deref};
 use format::{FmtSpan, TimingDisplay};
-use std::{
-    any::TypeId, cell::RefCell, env, fmt, io, marker::PhantomData, ops::Deref, time::Instant,
-};
+use std::{cell::RefCell, env, eprintln, io, thread_local, time::Instant};
 use tracing_core::{
     field,
     span::{Attributes, Current, Id, Record},
@@ -242,6 +242,27 @@ impl<S, N, E, W> Layer<S, N, E, W> {
         self.is_ansi = ansi;
     }
 
+    /// Modifies how synthesized events are emitted at points in the [span
+    /// lifecycle][lifecycle].
+    ///
+    /// See [`Self::with_span_events`] for documentation on the [`FmtSpan`]
+    ///
+    /// This method is primarily expected to be used with the
+    /// [`reload::Handle::modify`](crate::reload::Handle::modify) method
+    ///
+    /// Note that using this method modifies the span configuration instantly and does not take into
+    /// account any current spans. If the previous configuration was set to capture
+    /// `FmtSpan::ALL`, for example, using this method to change to `FmtSpan::NONE` will cause an
+    /// exit event for currently entered events not to be formatted
+    ///
+    /// [lifecycle]: mod@tracing::span#the-span-lifecycle
+    pub fn set_span_events(&mut self, kind: FmtSpan) {
+        self.fmt_span = format::FmtSpanConfig {
+            kind,
+            fmt_timing: self.fmt_span.fmt_timing,
+        }
+    }
+
     /// Configures the layer to support [`libtest`'s output capturing][capturing] when used in
     /// unit tests.
     ///
@@ -301,8 +322,8 @@ impl<S, N, E, W> Layer<S, N, E, W> {
     /// whether or not other crates in the dependency graph enable the "ansi"
     /// feature flag.
     ///
-    /// [`with_ansi`]: Subscriber::with_ansi
-    /// [`set_ansi`]: Subscriber::set_ansi
+    /// [`with_ansi`]: Layer::with_ansi
+    /// [`set_ansi`]: Layer::set_ansi
     pub fn with_ansi(self, ansi: bool) -> Self {
         #[cfg(not(feature = "ansi"))]
         if ansi {
@@ -422,22 +443,22 @@ where
     /// The following options are available:
     ///
     /// - `FmtSpan::NONE`: No events will be synthesized when spans are
-    ///    created, entered, exited, or closed. Data from spans will still be
-    ///    included as the context for formatted events. This is the default.
+    ///   created, entered, exited, or closed. Data from spans will still be
+    ///   included as the context for formatted events. This is the default.
     /// - `FmtSpan::NEW`: An event will be synthesized when spans are created.
     /// - `FmtSpan::ENTER`: An event will be synthesized when spans are entered.
     /// - `FmtSpan::EXIT`: An event will be synthesized when spans are exited.
     /// - `FmtSpan::CLOSE`: An event will be synthesized when a span closes. If
-    ///    [timestamps are enabled][time] for this formatter, the generated
-    ///    event will contain fields with the span's _busy time_ (the total
-    ///    time for which it was entered) and _idle time_ (the total time that
-    ///    the span existed but was not entered).
+    ///   [timestamps are enabled][time] for this formatter, the generated
+    ///   event will contain fields with the span's _busy time_ (the total
+    ///   time for which it was entered) and _idle time_ (the total time that
+    ///   the span existed but was not entered).
     /// - `FmtSpan::ACTIVE`: Events will be synthesized when spans are entered
-    ///    or exited.
+    ///   or exited.
     /// - `FmtSpan::FULL`: Events will be synthesized whenever a span is
-    ///    created, entered, exited, or closed. If timestamps are enabled, the
-    ///    close event will contain the span's busy and idle time, as
-    ///    described above.
+    ///   created, entered, exited, or closed. If timestamps are enabled, the
+    ///   close event will contain the span's busy and idle time, as
+    ///   described above.
     ///
     /// The options can be enabled in any combination. For instance, the following
     /// will synthesize events whenever spans are created and closed:
@@ -573,7 +594,7 @@ where
     /// # Options
     ///
     /// - [`Layer::flatten_event`] can be used to enable flattening event fields into the root
-    /// object.
+    ///   object.
     ///
     /// [`Layer::flatten_event`]: Layer::flatten_event()
     #[cfg(feature = "json")]
@@ -870,9 +891,12 @@ where
             let span = ctx.span(id).expect("Span not found, this is a bug");
             let mut extensions = span.extensions_mut();
             if let Some(timings) = extensions.get_mut::<Timings>() {
-                let now = Instant::now();
-                timings.idle += (now - timings.last).as_nanos() as u64;
-                timings.last = now;
+                if timings.entered_count == 0 {
+                    let now = Instant::now();
+                    timings.idle += (now - timings.last).as_nanos() as u64;
+                    timings.last = now;
+                }
+                timings.entered_count += 1;
             }
 
             if self.fmt_span.trace_enter() {
@@ -890,9 +914,12 @@ where
             let span = ctx.span(id).expect("Span not found, this is a bug");
             let mut extensions = span.extensions_mut();
             if let Some(timings) = extensions.get_mut::<Timings>() {
-                let now = Instant::now();
-                timings.busy += (now - timings.last).as_nanos() as u64;
-                timings.last = now;
+                timings.entered_count -= 1;
+                if timings.entered_count == 0 {
+                    let now = Instant::now();
+                    timings.busy += (now - timings.last).as_nanos() as u64;
+                    timings.last = now;
+                }
             }
 
             if self.fmt_span.trace_exit() {
@@ -914,7 +941,9 @@ where
                     busy,
                     mut idle,
                     last,
+                    entered_count,
                 } = *timing;
+                debug_assert_eq!(entered_count, 0);
                 idle += (Instant::now() - last).as_nanos() as u64;
 
                 let t_idle = field::display(TimingDisplay(idle));
@@ -944,7 +973,7 @@ where
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
         thread_local! {
-            static BUF: RefCell<String> = RefCell::new(String::new());
+            static BUF: RefCell<String> = const { RefCell::new(String::new()) };
         }
 
         BUF.with(|buf| {
@@ -1015,13 +1044,13 @@ pub struct FmtContext<'a, S, N> {
     pub(crate) event: &'a Event<'a>,
 }
 
-impl<'a, S, N> fmt::Debug for FmtContext<'a, S, N> {
+impl<S, N> fmt::Debug for FmtContext<'_, S, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FmtContext").finish()
     }
 }
 
-impl<'cx, 'writer, S, N> FormatFields<'writer> for FmtContext<'cx, S, N>
+impl<'writer, S, N> FormatFields<'writer> for FmtContext<'_, S, N>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     N: FormatFields<'writer> + 'static,
@@ -1035,7 +1064,7 @@ where
     }
 }
 
-impl<'a, S, N> FmtContext<'a, S, N>
+impl<S, N> FmtContext<'_, S, N>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     N: for<'writer> FormatFields<'writer> + 'static,
@@ -1204,6 +1233,7 @@ struct Timings {
     idle: u64,
     busy: u64,
     last: Instant,
+    entered_count: u64,
 }
 
 impl Timings {
@@ -1212,6 +1242,7 @@ impl Timings {
             idle: 0,
             busy: 0,
             last: Instant::now(),
+            entered_count: 0,
         }
     }
 }
@@ -1227,6 +1258,7 @@ mod test {
         time,
     };
     use crate::Registry;
+    use alloc::{string::ToString, vec, vec::Vec};
     use format::FmtSpan;
     use regex::Regex;
     use tracing::subscriber::with_default;
@@ -1587,5 +1619,52 @@ mod test {
 
         // dropping `_saved_no_color` will restore the previous value of
         // `NO_COLOR`.
+    }
+
+    // Validates that span event configuration can be modified with a reload handle
+    #[test]
+    fn modify_span_events() {
+        let make_writer = MockMakeWriter::default();
+
+        let inner_layer = fmt::Layer::default()
+            .with_writer(make_writer.clone())
+            .with_level(false)
+            .with_ansi(false)
+            .with_timer(MockTime)
+            .with_span_events(FmtSpan::ACTIVE);
+
+        let (reloadable_layer, reload_handle) = crate::reload::Layer::new(inner_layer);
+        let reload = reloadable_layer.with_subscriber(Registry::default());
+
+        with_default(reload, || {
+            {
+                let span1 = tracing::info_span!("span1", x = 42);
+                let _e = span1.enter();
+            }
+
+            let _ = reload_handle.modify(|s| s.set_span_events(FmtSpan::NONE));
+
+            // this span should not be logged at all!
+            {
+                let span2 = tracing::info_span!("span2", x = 100);
+                let _e = span2.enter();
+            }
+
+            {
+                let span3 = tracing::info_span!("span3", x = 42);
+                let _e = span3.enter();
+
+                // The span config was modified after span3 was already entered.
+                // We should only see an exit
+                let _ = reload_handle.modify(|s| s.set_span_events(FmtSpan::ACTIVE));
+            }
+        });
+        let actual = sanitize_timings(make_writer.get_string());
+        assert_eq!(
+            "fake time span1{x=42}: tracing_subscriber::fmt::fmt_layer::test: enter\n\
+             fake time span1{x=42}: tracing_subscriber::fmt::fmt_layer::test: exit\n\
+             fake time span3{x=42}: tracing_subscriber::fmt::fmt_layer::test: exit\n",
+            actual.as_str()
+        );
     }
 }

@@ -1,6 +1,7 @@
 //! Formatters for event timestamps.
 use crate::fmt::format::Writer;
 use std::fmt;
+use std::format;
 use std::time::Instant;
 
 mod datetime;
@@ -86,7 +87,7 @@ pub fn uptime() -> Uptime {
     Uptime::default()
 }
 
-impl<'a, F> FormatTime for &'a F
+impl<F> FormatTime for &F
 where
     F: FormatTime,
 {
