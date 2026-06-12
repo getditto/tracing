@@ -101,7 +101,8 @@ pub struct FilterId(u64);
 /// [`Filter`]: crate::layer::Filter
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct FilterMap {
-    bits: u64,
+    disabled: u64,
+    seen: u64,
 }
 
 /// The current state of `enabled` calls to per-layer filters on this
@@ -132,7 +133,7 @@ pub(crate) struct FilterMap {
 ///     recording a span or event can be skipped entirely.
 #[derive(Debug)]
 pub(crate) struct FilterState {
-    enabled: Cell<FilterMap>,
+    filter_map: Cell<FilterMap>,
     // TODO(eliza): `Interest`s should _probably_ be `Copy`. The only reason
     // they're not is our Obsessive Commitment to Forwards-Compatibility. If
     // this changes in tracing-core`, we can make this a `Cell` rather than
@@ -623,8 +624,8 @@ impl<L, F, S> Filtered<L, F, S> {
         self.id.0
     }
 
-    fn did_enable(&self, f: impl FnOnce()) {
-        FILTERING.with(|filtering| filtering.did_enable(self.id(), f))
+    fn did_enable(&self, recalculate_enabled: impl FnOnce() -> bool, if_enabled: impl FnOnce()) {
+        FILTERING.with(|filtering| filtering.did_enable(self.id(), recalculate_enabled, if_enabled))
     }
 
     /// Borrows the [`Filter`](crate::layer::Filter) used by this layer.
@@ -726,6 +727,39 @@ where
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
         let interest = self.filter.callsite_enabled(metadata);
 
+        // Per-layer filters use thread-local state to store whether they've
+        // disabled a given event/span from the `enabled()` call until the
+        // `event()`/`new_span()` call.
+        //
+        // Unfortunately, if we allow a per-layer filter to express an "always"
+        // interest in a callsite, and an event is emitted from that callsite
+        // *from within a re-entrant call* (e.g. the calculation of the value of
+        // an event's field itself causes an event to be emitted), there are
+        // situations where `enabled()` will not be called for the inner event.
+        // There is no straightforward way, in that situation, to keep the inner
+        // event from both:
+        //
+        // - Exhibiting incorrect behaviour due to misinterpretation of the
+        //   thread-local state (usually, not emitting the inner event even
+        //   though it should have been enabled)
+        // - Clobbering the thread-local state of the outer event (usually,
+        //   ending up emitting the outer event even though it should have been
+        //   disabled)
+        //
+        // The solution for the time being is therefore that we have to consider
+        // per-layer filters too broken to allow them to express an "always"
+        // interest, and we have to knock this down to "sometimes". The
+        // `enabled()` function will therefore always be called on events/spans
+        // that are subject to a per-layer filter; while the performance
+        // regression is regrettable, this will ensure that per-layer filters
+        // are always given the chance to push and pop their filter state to its
+        // stack, so they can correctly handle re-entrant calls.
+        let interest = if interest.is_always() {
+            Interest::sometimes()
+        } else {
+            interest
+        };
+
         // If the filter didn't disable the callsite, allow the inner layer to
         // register it — since `register_callsite` is also used for purposes
         // such as reserving/caching per-callsite data, we want the inner layer
@@ -776,11 +810,15 @@ where
     }
 
     fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, cx: Context<'_, S>) {
-        self.did_enable(|| {
-            let cx = cx.with_filter(self.id());
-            self.filter.on_new_span(attrs, id, cx.clone());
-            self.layer.on_new_span(attrs, id, cx);
-        })
+        let cx = cx.with_filter(self.id());
+        let cx_for_recalculate = cx.clone();
+        self.did_enable(
+            || self.filter.enabled(attrs.metadata(), &cx_for_recalculate),
+            || {
+                self.filter.on_new_span(attrs, id, cx.clone());
+                self.layer.on_new_span(attrs, id, cx);
+            },
+        )
     }
 
     #[doc(hidden)]
@@ -805,8 +843,14 @@ where
 
     fn event_enabled(&self, event: &Event<'_>, cx: Context<'_, S>) -> bool {
         let cx = cx.with_filter(self.id());
-        let enabled = FILTERING
-            .with(|filtering| filtering.and(self.id(), || self.filter.event_enabled(event, &cx)));
+        let cx_for_recalculate = cx.clone();
+        let enabled = FILTERING.with(|filtering| {
+            filtering.and(
+                self.id(),
+                || self.filter.enabled(event.metadata(), &cx_for_recalculate),
+                || self.filter.event_enabled(event, &cx),
+            )
+        });
 
         if enabled {
             // If the filter enabled this event, ask the wrapped subscriber if
@@ -820,9 +864,14 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, cx: Context<'_, S>) {
-        self.did_enable(|| {
-            self.layer.on_event(event, cx.with_filter(self.id()));
-        })
+        let cx = cx.with_filter(self.id());
+        let cx_for_recalculate = cx.clone();
+        self.did_enable(
+            || self.filter.enabled(event.metadata(), &cx_for_recalculate),
+            || {
+                self.layer.on_event(event, cx);
+            },
+        )
     }
 
     fn on_enter(&self, id: &span::Id, cx: Context<'_, S>) {
@@ -1035,23 +1084,41 @@ impl FilterMap {
 
         if enabled {
             Self {
-                bits: self.bits & (!mask),
+                disabled: self.disabled & (!mask),
+                seen: self.seen | mask,
             }
         } else {
             Self {
-                bits: self.bits | mask,
+                disabled: self.disabled | mask,
+                seen: self.seen | mask,
             }
+        }
+    }
+
+    pub(crate) fn clear_seen(self, FilterId(mask): FilterId) -> Self {
+        if mask == std::u64::MAX {
+            return self;
+        }
+
+        Self {
+            disabled: self.disabled,
+            seen: self.seen & (!mask),
         }
     }
 
     #[inline]
     pub(crate) fn is_enabled(self, FilterId(mask): FilterId) -> bool {
-        self.bits & mask == 0
+        self.disabled & mask == 0
+    }
+
+    #[inline]
+    pub(crate) fn has_seen(self, FilterId(mask): FilterId) -> bool {
+        self.seen & mask != 0
     }
 
     #[inline]
     pub(crate) fn any_enabled(self) -> bool {
-        self.bits != std::u64::MAX
+        self.disabled != std::u64::MAX
     }
 }
 
@@ -1059,10 +1126,15 @@ impl fmt::Debug for FilterMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let alt = f.alternate();
         let mut s = f.debug_struct("FilterMap");
-        s.field("disabled_by", &format_args!("{:?}", &FmtBitset(self.bits)));
+        s.field(
+            "disabled_by",
+            &format_args!("{:?}", &FmtBitset(self.disabled)),
+        );
+        s.field("seen_by", &format_args!("{:?}", &FmtBitset(self.seen)));
 
         if alt {
-            s.field("bits", &format_args!("{:b}", self.bits));
+            s.field("disabled_bits", &format_args!("{:b}", self.disabled));
+            s.field("seen_bits", &format_args!("{:b}", self.seen));
         }
 
         s.finish()
@@ -1072,7 +1144,8 @@ impl fmt::Debug for FilterMap {
 impl fmt::Binary for FilterMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FilterMap")
-            .field("bits", &format_args!("{:b}", self.bits))
+            .field("disabled", &format_args!("{:b}", self.disabled))
+            .field("seen", &format_args!("{:b}", self.seen))
             .finish()
     }
 }
@@ -1082,7 +1155,7 @@ impl fmt::Binary for FilterMap {
 impl FilterState {
     fn new() -> Self {
         Self {
-            enabled: Cell::new(FilterMap::default()),
+            filter_map: Cell::new(FilterMap::default()),
             interest: RefCell::new(None),
 
             #[cfg(debug_assertions)]
@@ -1095,7 +1168,10 @@ impl FilterState {
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass == 0 {
-                debug_assert_eq!(self.enabled.get(), FilterMap::default());
+                debug_assert_eq!(
+                    self.filter_map.get().disabled,
+                    FilterMap::default().disabled
+                );
             }
             self.counters.in_filter_pass.set(in_current_pass + 1);
             debug_assert_eq!(
@@ -1105,7 +1181,8 @@ impl FilterState {
             )
         }
 
-        self.enabled.set(self.enabled.get().set(filter, enabled))
+        self.filter_map
+            .set(self.filter_map.get().set(filter, enabled))
     }
 
     fn add_interest(&self, interest: Interest) {
@@ -1136,11 +1213,14 @@ impl FilterState {
     pub(crate) fn event_enabled() -> bool {
         FILTERING
             .try_with(|this| {
-                let enabled = this.enabled.get().any_enabled();
+                let enabled = this.filter_map.get().any_enabled();
                 #[cfg(debug_assertions)]
                 {
                     if this.counters.in_filter_pass.get() == 0 {
-                        debug_assert_eq!(this.enabled.get(), FilterMap::default());
+                        debug_assert_eq!(
+                            this.filter_map.get().disabled,
+                            FilterMap::default().disabled
+                        );
                     }
 
                     // Nothing enabled this event, we won't tick back down the
@@ -1159,25 +1239,44 @@ impl FilterState {
     ///
     /// This is used to implement the `on_event` and `new_span` methods for
     /// `Filtered`.
-    fn did_enable(&self, filter: FilterId, f: impl FnOnce()) {
-        let map = self.enabled.get();
-        if map.is_enabled(filter) {
+    fn did_enable(
+        &self,
+        filter: FilterId,
+        recalculate_enabled: impl FnOnce() -> bool,
+        if_enabled: impl FnOnce(),
+    ) {
+        let map = self.filter_map.get();
+        let enabled = if map.has_seen(filter) {
+            map.is_enabled(filter)
+        } else {
+            recalculate_enabled()
+        };
+
+        let new_map = if enabled {
             // If the filter didn't disable the current span/event, run the
             // callback.
-            f();
+            if_enabled();
+
+            self.filter_map.get().clear_seen(filter)
         } else {
             // Otherwise, if this filter _did_ disable the span or event
             // currently being processed, clear its bit from this thread's
             // `FilterState`. The bit has already been "consumed" by skipping
             // this callback, and we need to ensure that the `FilterMap` for
             // this thread is reset when the *next* `enabled` call occurs.
-            self.enabled.set(map.set(filter, true));
-        }
+            self.filter_map.get().set(filter, true).clear_seen(filter)
+        };
+
+        self.filter_map.set(new_map);
+
         #[cfg(debug_assertions)]
         {
             let in_current_pass = self.counters.in_filter_pass.get();
             if in_current_pass <= 1 {
-                debug_assert_eq!(self.enabled.get(), FilterMap::default());
+                debug_assert_eq!(
+                    self.filter_map.get().disabled,
+                    FilterMap::default().disabled
+                );
             }
             self.counters
                 .in_filter_pass
@@ -1191,10 +1290,22 @@ impl FilterState {
     }
 
     /// Run a second filtering pass, e.g. for Layer::event_enabled.
-    fn and(&self, filter: FilterId, f: impl FnOnce() -> bool) -> bool {
-        let map = self.enabled.get();
-        let enabled = map.is_enabled(filter) && f();
-        self.enabled.set(map.set(filter, enabled));
+    fn and(
+        &self,
+        filter: FilterId,
+        recalculate_enabled: impl FnOnce() -> bool,
+        new_enabled: impl FnOnce() -> bool,
+    ) -> bool {
+        let map = self.filter_map.get();
+        let old_enabled = if map.has_seen(filter) {
+            map.is_enabled(filter)
+        } else {
+            recalculate_enabled()
+        };
+
+        let enabled = old_enabled && new_enabled();
+        self.filter_map
+            .set(self.filter_map.get().set(filter, enabled));
         enabled
     }
 
@@ -1207,7 +1318,7 @@ impl FilterState {
         // a panic and the thread-local has been torn down, that's fine, just
         // ignore it ratehr than panicking.
         let _ = FILTERING.try_with(|filtering| {
-            filtering.enabled.set(FilterMap::default());
+            filtering.filter_map.set(FilterMap::default());
 
             #[cfg(debug_assertions)]
             filtering.counters.in_filter_pass.set(0);
@@ -1230,11 +1341,11 @@ impl FilterState {
     }
 
     pub(crate) fn filter_map(&self) -> FilterMap {
-        let map = self.enabled.get();
+        let map = self.filter_map.get();
         #[cfg(debug_assertions)]
         {
             if self.counters.in_filter_pass.get() == 0 {
-                debug_assert_eq!(map, FilterMap::default());
+                debug_assert_eq!(map.disabled, FilterMap::default().disabled);
             }
         }
 

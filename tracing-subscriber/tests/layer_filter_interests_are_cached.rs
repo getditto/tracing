@@ -8,6 +8,7 @@ use tracing_mock::{expect, layer};
 use tracing_subscriber::{filter, prelude::*};
 
 #[test]
+#[ignore = "fails due to an intentional, necessary, performance regression from the layer filter re-entrancy fix"]
 fn layer_filter_interests_are_cached() {
     let seen = Arc::new(Mutex::new(HashMap::new()));
     let seen2 = seen.clone();
