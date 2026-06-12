@@ -6,10 +6,13 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use tracing::{debug_internal, error_internal, info_internal, info_span_internal, warn_internal};
-use tracing_journald::Layer;
-use tracing_subscriber::layer::SubscriberExt;
+use tracing::{
+    debug_internal, error_internal, info_internal, info_span_internal, trace_internal,
+    warn_internal,
+};
+use tracing_journald::{Layer, Priority, PriorityMappings};
 use tracing_subscriber::Registry;
+use tracing_subscriber::layer::SubscriberExt;
 
 fn journalctl_version() -> std::io::Result<String> {
     let output = Command::new("journalctl").arg("--version").output()?;
@@ -17,7 +20,16 @@ fn journalctl_version() -> std::io::Result<String> {
 }
 
 fn with_journald(f: impl FnOnce()) {
-    with_journald_layer(Layer::new().unwrap().with_field_prefix(None), f)
+    with_journald_layer(
+        Layer::new()
+            .unwrap()
+            .with_field_prefix(None)
+            .with_priority_mappings(PriorityMappings {
+                trace: Priority::Informational,
+                ..PriorityMappings::new()
+            }),
+        f,
+    )
 }
 
 fn with_journald_layer(layer: Layer, f: impl FnOnce()) {
@@ -160,7 +172,7 @@ fn retry_read_one_line_from_journal(testname: &str) -> HashMap<String, Field> {
 #[test]
 fn simple_message() {
     with_journald(|| {
-        info!(test.name = "simple_message", "Hello World");
+        info_internal!(test.name = "simple_message", "Hello World");
 
         let message = retry_read_one_line_from_journal("simple_message");
         assert_eq!(message["MESSAGE"], "Hello World");
@@ -169,9 +181,44 @@ fn simple_message() {
 }
 
 #[test]
+fn custom_priorities() {
+    fn check_message(level: &str, priority: &str) {
+        let entry = retry_read_one_line_from_journal(&format!("custom_priority.{}", level));
+        assert_eq!(entry["MESSAGE"], format!("hello {}", level).as_str());
+        assert_eq!(entry["PRIORITY"], priority);
+    }
+
+    let priorities = PriorityMappings {
+        error: Priority::Critical,
+        warn: Priority::Error,
+        info: Priority::Warning,
+        debug: Priority::Notice,
+        trace: Priority::Informational,
+    };
+    let layer = Layer::new()
+        .unwrap()
+        .with_field_prefix(None)
+        .with_priority_mappings(priorities);
+    let test = || {
+        trace_internal!(test.name = "custom_priority.trace", "hello trace");
+        check_message("trace", "6");
+        debug_internal!(test.name = "custom_priority.debug", "hello debug");
+        check_message("debug", "5");
+        info_internal!(test.name = "custom_priority.info", "hello info");
+        check_message("info", "4");
+        warn_internal!(test.name = "custom_priority.warn", "hello warn");
+        check_message("warn", "3");
+        error_internal!(test.name = "custom_priority.error", "hello error");
+        check_message("error", "2");
+    };
+
+    with_journald_layer(layer, test);
+}
+
+#[test]
 fn multiline_message() {
     with_journald(|| {
-        warn!(test.name = "multiline_message", "Hello\nMultiline\nWorld");
+        warn_internal!(test.name = "multiline_message", "Hello\nMultiline\nWorld");
 
         let message = retry_read_one_line_from_journal("multiline_message");
         assert_eq!(message["MESSAGE"], "Hello\nMultiline\nWorld");
@@ -182,7 +229,7 @@ fn multiline_message() {
 #[test]
 fn multiline_message_trailing_newline() {
     with_journald(|| {
-        error!(
+        error_internal!(
             test.name = "multiline_message_trailing_newline",
             "A trailing newline\n"
         );
@@ -196,7 +243,7 @@ fn multiline_message_trailing_newline() {
 #[test]
 fn internal_null_byte() {
     with_journald(|| {
-        debug!(test.name = "internal_null_byte", "An internal\x00byte");
+        debug_internal!(test.name = "internal_null_byte", "An internal\x00byte");
 
         let message = retry_read_one_line_from_journal("internal_null_byte");
         assert_eq!(message["MESSAGE"], b"An internal\x00byte"[..]);
@@ -208,7 +255,7 @@ fn internal_null_byte() {
 fn large_message() {
     let large_string = "b".repeat(512_000);
     with_journald(|| {
-        debug!(test.name = "large_message", "Message: {}", large_string);
+        debug_internal!(test.name = "large_message", "Message: {}", large_string);
 
         let message = retry_read_one_line_from_journal("large_message");
         assert_eq!(
@@ -226,7 +273,7 @@ fn simple_metadata() {
         .with_field_prefix(None)
         .with_syslog_identifier("test_ident".to_string());
     with_journald_layer(sub, || {
-        info!(test.name = "simple_metadata", "Hello World");
+        info_internal!(test.name = "simple_metadata", "Hello World");
 
         let message = retry_read_one_line_from_journal("simple_metadata");
         assert_eq!(message["MESSAGE"], "Hello World");
@@ -246,7 +293,7 @@ fn journal_fields() {
         .with_custom_fields([("SYSLOG_FACILITY", "17")])
         .with_custom_fields([("ABC", "dEf"), ("XYZ", "123")]);
     with_journald_layer(sub, || {
-        info!(test.name = "journal_fields", "Hello World");
+        info_internal!(test.name = "journal_fields", "Hello World");
 
         let message = retry_read_one_line_from_journal("journal_fields");
         assert_eq!(message["MESSAGE"], "Hello World");
@@ -263,10 +310,10 @@ fn journal_fields() {
 #[test]
 fn span_metadata() {
     with_journald(|| {
-        let s1 = info_span!("span1", span_field1 = "foo1");
+        let s1 = info_span_internal!("span1", span_field1 = "foo1");
         let _g1 = s1.enter();
 
-        info!(test.name = "span_metadata", "Hello World");
+        info_internal!(test.name = "span_metadata", "Hello World");
 
         let message = retry_read_one_line_from_journal("span_metadata");
         assert_eq!(message["MESSAGE"], "Hello World");
@@ -287,12 +334,12 @@ fn span_metadata() {
 #[test]
 fn multiple_spans_metadata() {
     with_journald(|| {
-        let s1 = info_span!("span1", span_field1 = "foo1");
+        let s1 = info_span_internal!("span1", span_field1 = "foo1");
         let _g1 = s1.enter();
-        let s2 = info_span!("span2", span_field1 = "foo2");
+        let s2 = info_span_internal!("span2", span_field1 = "foo2");
         let _g2 = s2.enter();
 
-        info!(test.name = "multiple_spans_metadata", "Hello World");
+        info_internal!(test.name = "multiple_spans_metadata", "Hello World");
 
         let message = retry_read_one_line_from_journal("multiple_spans_metadata");
         assert_eq!(message["MESSAGE"], "Hello World");
@@ -313,12 +360,12 @@ fn multiple_spans_metadata() {
 #[test]
 fn spans_field_collision() {
     with_journald(|| {
-        let s1 = info_span!("span1", span_field = "foo1");
+        let s1 = info_span_internal!("span1", span_field = "foo1");
         let _g1 = s1.enter();
-        let s2 = info_span!("span2", span_field = "foo2");
+        let s2 = info_span_internal!("span2", span_field = "foo2");
         let _g2 = s2.enter();
 
-        info!(
+        info_internal!(
             test.name = "spans_field_collision",
             span_field = "foo3",
             "Hello World"
