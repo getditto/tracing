@@ -67,7 +67,7 @@
 //! # fn new() -> Self { Self {} }
 //! # }
 //! # impl MySubscriber {
-//! # fn new() -> Self { Self { }}
+//! # fn new() -> Self { Self {} }
 //! # }
 //!
 //! let subscriber = MySubscriber::new()
@@ -107,7 +107,7 @@
 //! #   fn enabled(&self, _: &Metadata) -> bool { false }
 //! #   fn enter(&self, _: &Id) {}
 //! #   fn exit(&self, _: &Id) {}
-//! }
+//! # }
 //! # impl MyLayer {
 //! # fn new() -> Self { Self {} }
 //! # }
@@ -118,7 +118,7 @@
 //! # fn new() -> Self { Self {} }
 //! # }
 //! # impl MySubscriber {
-//! # fn new() -> Self { Self { }}
+//! # fn new() -> Self { Self {} }
 //! # }
 //!
 //! let subscriber = MySubscriber::new()
@@ -428,7 +428,7 @@
 //!   callsite). See [`Subscriber::register_callsite`] and
 //!   [`tracing_core::callsite`] for a summary of how this behaves.
 //! - [`enabled`], once per emitted event (roughly: once per time that `event!`
-//!   or `span!` is *executed*), and only if `register_callsite` regesters an
+//!   or `span!` is *executed*), and only if `register_callsite` registers an
 //!   [`Interest::sometimes`]. This is the main customization point to globally
 //!   filter events based on their [`Metadata`]. If an event can be disabled
 //!   based only on [`Metadata`], it should be, as this allows the construction
@@ -468,9 +468,9 @@
 //! function pointer. In addition, when more control is required, the [`Filter`]
 //! trait may also be implemented for user-defined types.
 //!
-//! //! [`Option<Filter>`] also implements [`Filter`], which allows for an optional
-//! filter. [`None`](Option::None) filters out _nothing_ (that is, allows
-//! everything through). For example:
+//! [`Option<Filter>`] also implements [`Filter`], which allows for an optional
+//! filter. [`None`] filters out _nothing_ (that is, allows everything through). For
+//! example:
 //!
 //! ```rust
 //! # use tracing_subscriber::{filter::filter_fn, Layer};
@@ -567,9 +567,10 @@
 //!
 //! Consider the following:
 //! - `layer_a` and `layer_b`, which should only receive spans and events at
-//!    the [`INFO`] [level] and above.
+//!   the [`INFO`] [level] and above.
 //! - A third layer, `layer_c`, which should receive spans and events at
-//!    the [`DEBUG`] [level] as well.
+//!   the [`DEBUG`] [level] as well.
+//!
 //! The layers and filters would be composed thusly:
 //!
 //! ```
@@ -763,7 +764,7 @@ where
     /// [`Subscriber`] has been set as the default, both the `Layer` and
     /// [`Subscriber`] are passed to this method _mutably_. This gives the
     /// `Layer` the opportunity to set any of its own fields with values
-    /// recieved by method calls on the [`Subscriber`].
+    /// received by method calls on the [`Subscriber`].
     ///
     /// For example, [`Filtered`] layers implement `on_layer` to call the
     /// [`Subscriber`]'s [`register_filter`] method, and store the returned
@@ -1291,7 +1292,7 @@ feature! {
         /// <pre class="ignore" style="white-space:normal;font:inherit;">
         /// <strong>Note</strong>: If a <code>Filter</code> will perform
         /// <em>dynamic filtering</em> that depends on the current context in which
-        /// a span or event was observered (e.g. only enabling an event when it
+        /// a span or event was observed (e.g. only enabling an event when it
         /// occurs within a particular span), it <strong>must</strong> return
         /// <code>Interest::sometimes()</code> from this method. If it returns
         /// <code>Interest::always()</code> or <code>Interest::never()</code>, the
@@ -1309,7 +1310,7 @@ feature! {
         /// other hand, when a `Filter` returns [`Interest::always()`][always] or
         /// [`Interest::never()`][never] for a callsite, _other_ [`Layer`]s may have
         /// differing interests in that callsite. If this is the case, the callsite
-        /// will recieve [`Interest::sometimes()`][sometimes], and the [`enabled`]
+        /// will receive [`Interest::sometimes()`][sometimes], and the [`enabled`]
         /// method will still be called for that callsite when it records a span or
         /// event.
         ///
@@ -1667,14 +1668,14 @@ where
         } else if id == TypeId::of::<NoneLayerMarker>() && self.is_none() {
             Some(&NONE_LAYER_MARKER as *const _ as *const ())
         } else {
-            self.as_ref().and_then(|inner| inner.downcast_raw(id))
+            self.as_ref()
+                .and_then(|inner| unsafe { inner.downcast_raw(id) })
         }
     }
 }
 
 feature! {
     #![any(feature = "std", feature = "alloc")]
-    #[cfg(not(feature = "std"))]
     use alloc::vec::Vec;
 
     macro_rules! layer_impl_body {
@@ -1752,7 +1753,7 @@ feature! {
             #[doc(hidden)]
             #[inline]
             unsafe fn downcast_raw(&self, id: TypeId) -> Option<*const ()> {
-                self.deref().downcast_raw(id)
+                unsafe { self.deref().downcast_raw(id) }
             }
         };
     }
@@ -1771,8 +1772,6 @@ feature! {
     {
         layer_impl_body! {}
     }
-
-
 
     impl<S, L> Layer<S> for Vec<L>
     where
@@ -1880,14 +1879,16 @@ feature! {
             // XXX(eliza): it's a bummer we have to do this linear search every
             // time. It would be nice if this could be cached, but that would
             // require replacing the `Vec` impl with an impl for a newtype...
-            if filter::is_plf_downcast_marker(id) && self.iter().any(|s| s.downcast_raw(id).is_none()) {
+            if filter::is_plf_downcast_marker(id)
+                && self.iter().any(|s| unsafe { s.downcast_raw(id).is_none() })
+            {
                 return None;
             }
 
             // Otherwise, return the first child of `self` that downcaasts to
             // the selected type, if any.
             // XXX(eliza): hope this is reasonable lol
-            self.iter().find_map(|l| l.downcast_raw(id))
+            self.iter().find_map(|l| unsafe { l.downcast_raw(id) })
         }
     }
 }
