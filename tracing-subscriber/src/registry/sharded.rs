@@ -1,4 +1,4 @@
-use sharded_slab::{pool::Ref, Clear, Pool};
+use sharded_slab::{pool::Ref, Clear, Config, Pool};
 use thread_local::ThreadLocal;
 
 use super::stack::SpanStack;
@@ -19,6 +19,24 @@ use tracing_core::{
     span::{self, Current, Id},
     Event, Interest, Metadata, Subscriber,
 };
+
+/// Custom [`sharded_slab::Config`] for the span registry pool.
+///
+/// When the `large-thread-count` feature is enabled, `MAX_THREADS` is raised
+/// from the upstream default of 4 096 to 131 072, preventing panics on
+/// high-core machines (e.g. HyDRA load-gen nodes) where large numbers of
+/// native threads are spawned.
+#[derive(Debug)]
+struct SlabConfig;
+
+impl Config for SlabConfig {
+    /// When the `large-thread-count` feature is enabled on a 64-bit target:
+    /// 131 072 threads = 2^17. On 32-bit targets (e.g. wasm32) the raised value
+    /// would overflow `sharded_slab`'s bit-packing arithmetic, so the default
+    /// of 4 096 is retained there regardless of the feature flag.
+    #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
+    const MAX_THREADS: usize = 131_072;
+}
 
 /// A shared, reusable store for spans.
 ///
@@ -90,7 +108,7 @@ use tracing_core::{
 #[cfg_attr(docsrs, doc(cfg(all(feature = "registry", feature = "std"))))]
 #[derive(Debug)]
 pub struct Registry {
-    spans: Pool<DataInner>,
+    spans: Pool<DataInner, SlabConfig>,
     current_spans: ThreadLocal<RefCell<SpanStack>>,
     next_filter_id: u8,
 }
@@ -109,7 +127,7 @@ pub struct Registry {
 #[derive(Debug)]
 pub struct Data<'a> {
     /// Immutable reference to the pooled `DataInner` entry.
-    inner: Ref<'a, DataInner>,
+    inner: Ref<'a, DataInner, SlabConfig>,
 }
 
 /// Stored data associated with a span.
@@ -135,7 +153,7 @@ struct DataInner {
 impl Default for Registry {
     fn default() -> Self {
         Self {
-            spans: Pool::new(),
+            spans: Pool::new_with_config::<SlabConfig>(),
             current_spans: ThreadLocal::new(),
             next_filter_id: 0,
         }
@@ -180,7 +198,7 @@ pub(crate) struct CloseGuard<'a> {
 }
 
 impl Registry {
-    fn get(&self, id: &Id) -> Option<Ref<'_, DataInner>> {
+    fn get(&self, id: &Id) -> Option<Ref<'_, DataInner, SlabConfig>> {
         self.spans.get(id_to_idx(id))
     }
 
@@ -904,5 +922,16 @@ mod tests {
 
             state.assert_closed_in_order(["child", "parent", "grandparent"]);
         });
+    }
+
+    #[test]
+    #[cfg(all(feature = "large-thread-count", target_pointer_width = "64"))]
+    fn slab_config_raises_max_threads() {
+        assert_eq!(SlabConfig::MAX_THREADS, 131_072);
+        // Confirm the Registry pool is actually parameterised on SlabConfig —
+        // this is a compile-time check: if `Registry::spans` ever changes to a
+        // different Config type, the type annotation below will fail to compile.
+        let registry = Registry::default();
+        let _: &Pool<DataInner, SlabConfig> = &registry.spans;
     }
 }
