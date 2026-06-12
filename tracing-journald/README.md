@@ -1,6 +1,6 @@
 ![Tracing — Structured, application-level diagnostics][splash]
 
-[splash]: https://raw.githubusercontent.com/tokio-rs/tracing/master/assets/splash.svg
+[splash]: https://raw.githubusercontent.com/tokio-rs/tracing/main/assets/splash.svg
 
 # tracing-journald
 
@@ -8,14 +8,17 @@ Support for logging [`tracing`] events natively to [journald],
 preserving structured information.
 
 [![Crates.io][crates-badge]][crates-url]
-[![Documentation (master)][docs-master-badge]][docs-master-url]
+[![Documentation][docs-badge]][docs-url]
+[![Documentation (v0.2.x)][docs-v0.2.x-badge]][docs-v0.2.x-url]
 [![MIT licensed][mit-badge]][mit-url]
 ![maintenance status][maint-badge]
 
 [crates-badge]: https://img.shields.io/crates/v/tracing-journald.svg
-[crates-url]: https://crates.io/crates/tracing-journald
-[docs-master-badge]: https://img.shields.io/badge/docs-master-blue
-[docs-master-url]: https://tracing-rs.netlify.com/tracing_journald
+[crates-url]: https://crates.io/crates/tracing-journald/0.3.2
+[docs-badge]: https://docs.rs/tracing-journald/badge.svg
+[docs-url]: https://docs.rs/tracing-journald/0.3.2
+[docs-v0.2.x-badge]: https://img.shields.io/badge/docs-v0.2.x-blue
+[docs-v0.2.x-url]: https://tracing.rs/tracing_journald
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: LICENSE
 [maint-badge]: https://img.shields.io/badge/maintenance-experimental-blue.svg
@@ -24,11 +27,11 @@ preserving structured information.
 
 [`tracing`] is a framework for instrumenting Rust programs to collect
 scoped, structured, and async-aware diagnostics. `tracing-journald` provides a
-[`tracing-subscriber::Layer`][layer] implementation for logging `tracing` spans
+[`tracing_subscriber::Layer`][layer] implementation for logging `tracing` spans
 and events to [`systemd-journald`][journald], on Linux distributions that use
 `systemd`.
- 
-*Compiler support: [requires `rustc` 1.63+][msrv]*
+
+*Compiler support: [requires `rustc` 1.65+][msrv]*
 
 [msrv]: #supported-rust-versions
 [`tracing`]: https://crates.io/crates/tracing
@@ -38,7 +41,7 @@ and events to [`systemd-journald`][journald], on Linux distributions that use
 ## Supported Rust Versions
 
 Tracing is built against the latest stable release. The minimum supported
-version is 1.63. The current Tracing version is not guaranteed to build on Rust
+version is 1.65. The current Tracing version is not guaranteed to build on Rust
 versions earlier than the minimum supported version.
 
 Tracing follows the same compiler support policies as the rest of the Tokio
