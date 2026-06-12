@@ -3,7 +3,7 @@ name = "tracing-examples"
 version = "0.0.0"
 publish = false
 edition = "2018"
-rust-version = "1.63.0"
+rust-version = "1.64.0"
 
 [features]
 default = []
@@ -38,7 +38,7 @@ bytes = "1"
 argh = "0.1.8"
 
 # sloggish example
-nu-ansi-term = "0.46.0"
+nu-ansi-term = "0.50.0"
 humantime = "2.1.0"
 log = "0.4.17"
 
@@ -48,11 +48,20 @@ tempfile = "3"
 
 # fmt examples
 snafu = "0.6.10"
-thiserror = "1.0.31"
+thiserror = "2"
 
-# valuable examples 
+# env-filter-explorer example
+ansi-to-tui = "7.0.0"
+ratatui = "0.29.0"
+crossterm = "0.28.1"
+tui-textarea = "0.7.0"
+
+# valuable examples
 valuable = { version = "0.1.0", features = ["derive"] }
 
 [target.'cfg(tracing_unstable)'.dependencies]
 tracing-core = { path = "../tracing-core", version = "0.1.28", features = ["valuable"]}
 tracing-subscriber = { path = "../tracing-subscriber", version = "0.3.0", features = ["json", "env-filter", "valuable"]}
+
+[lints]
+workspace = true
