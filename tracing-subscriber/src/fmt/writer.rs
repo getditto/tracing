@@ -1,10 +1,13 @@
 //! Abstractions for creating [`io::Write`] instances.
 //!
 //! [`io::Write`]: std::io::Write
+
+use alloc::{boxed::Box, fmt, string::String, sync::Arc};
 use std::{
-    fmt,
+    eprint,
     io::{self, Write},
-    sync::{Arc, Mutex, MutexGuard},
+    print,
+    sync::{Mutex, MutexGuard},
 };
 use tracing_core::Metadata;
 
@@ -229,7 +232,7 @@ pub trait MakeWriterExt<'a>: MakeWriter<'a> {
     /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
     /// // Construct a writer that outputs events to `stderr` only if the span or
-    /// // event's level is >= WARN (WARN and ERROR).
+    /// // event's level is <= WARN (WARN and ERROR).
     /// let mk_writer = std::io::stderr.with_max_level(Level::WARN);
     ///
     /// tracing_subscriber::fmt().with_writer(mk_writer).init();
@@ -293,7 +296,7 @@ pub trait MakeWriterExt<'a>: MakeWriter<'a> {
     /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
     /// // Construct a writer that outputs events to `stdout` only if the span or
-    /// // event's level is <= DEBUG (DEBUG and TRACE).
+    /// // event's level is >= DEBUG (DEBUG and TRACE).
     /// let mk_writer = std::io::stdout.with_min_level(Level::DEBUG);
     ///
     /// tracing_subscriber::fmt().with_writer(mk_writer).init();
@@ -467,7 +470,7 @@ pub trait MakeWriterExt<'a>: MakeWriter<'a> {
     /// use tracing::Level;
     /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
-    /// // Produces a writer that writes to `stderr` if the level is >= WARN,
+    /// // Produces a writer that writes to `stderr` if the level is <= WARN,
     /// // or returns `OptionalWriter::none()` otherwise.
     /// let stderr = std::io::stderr.with_max_level(Level::WARN);
     ///
@@ -494,8 +497,10 @@ pub trait MakeWriterExt<'a>: MakeWriter<'a> {
 ///
 /// `TestWriter` is used by [`fmt::Subscriber`] or [`fmt::Layer`] to enable capturing support.
 ///
-/// `cargo test` can only capture output from the standard library's [`print!`] macro. See
-/// [`libtest`'s output capturing][capturing] for more details about output capturing.
+/// `cargo test` can only capture output from the standard library's [`print!`] and [`eprint!`]
+/// macros. See [`libtest`'s output capturing][capturing] and
+/// [rust-lang/rust#90785](https://github.com/rust-lang/rust/issues/90785) for more details about
+/// output capturing.
 ///
 /// Writing to [`io::stdout`] and [`io::stderr`] produces the same results as using
 /// [`libtest`'s `--nocapture` option][nocapture] which may make the results look unreadable.
@@ -509,7 +514,9 @@ pub trait MakeWriterExt<'a>: MakeWriter<'a> {
 /// [`print!`]: std::print!
 #[derive(Default, Debug)]
 pub struct TestWriter {
-    _p: (),
+    /// Whether or not to use `stderr` instead of the default `stdout` as
+    /// the underlying stream to write to.
+    use_stderr: bool,
 }
 
 /// A writer that erases the specific [`io::Write`] and [`MakeWriter`] types being used.
@@ -654,6 +661,9 @@ pub struct MutexGuardWriter<'a, W>(MutexGuard<'a, W>);
 /// Implements [`std::io::Write`] for an [`Arc`]<W> where `&W: Write`.
 ///
 /// This is an implementation detail of the [`MakeWriter`] impl for [`Arc`].
+#[doc(hidden)]
+#[deprecated(since = "0.1.19", note = "unused implementation detail -- do not use")]
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct ArcWriter<W>(Arc<W>);
 
@@ -705,12 +715,21 @@ impl TestWriter {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Returns a new `TestWriter` that writes to `stderr` instead of `stdout`.
+    pub fn with_stderr() -> Self {
+        Self { use_stderr: true }
+    }
 }
 
 impl io::Write for TestWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let out_str = String::from_utf8_lossy(buf);
-        print!("{}", out_str);
+        if self.use_stderr {
+            eprint!("{}", out_str)
+        } else {
+            print!("{}", out_str)
+        }
         Ok(buf.len())
     }
 
@@ -797,7 +816,7 @@ where
     }
 }
 
-impl<'a, W> io::Write for MutexGuardWriter<'a, W>
+impl<W> io::Write for MutexGuardWriter<'_, W>
 where
     W: io::Write,
 {
@@ -1134,6 +1153,7 @@ where
 
 // === impl ArcWriter ===
 
+#[allow(deprecated)]
 impl<W> io::Write for ArcWriter<W>
 where
     for<'a> &'a W: io::Write,
@@ -1173,7 +1193,7 @@ impl<'a> WriteAdaptor<'a> {
     }
 }
 #[cfg(any(feature = "json", feature = "time"))]
-impl<'a> io::Write for WriteAdaptor<'a> {
+impl io::Write for WriteAdaptor<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let s =
             std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -1182,7 +1202,7 @@ impl<'a> io::Write for WriteAdaptor<'a> {
             .write_str(s)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-        Ok(s.as_bytes().len())
+        Ok(s.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -1191,7 +1211,7 @@ impl<'a> io::Write for WriteAdaptor<'a> {
 }
 
 #[cfg(any(feature = "json", feature = "time"))]
-impl<'a> fmt::Debug for WriteAdaptor<'a> {
+impl fmt::Debug for WriteAdaptor<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("WriteAdaptor { .. }")
     }
@@ -1205,8 +1225,10 @@ mod test {
     use crate::fmt::format::Format;
     use crate::fmt::test::{MockMakeWriter, MockWriter};
     use crate::fmt::Subscriber;
+    use alloc::vec::Vec;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
+    use std::{dbg, format, println};
     use tracing::{debug, error, info, trace, warn, Level};
     use tracing_core::dispatcher::{self, Dispatch};
 
