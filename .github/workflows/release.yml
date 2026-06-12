@@ -13,12 +13,12 @@ jobs:
     if: github.repository_owner == 'tokio-rs'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: taiki-e/create-gh-release-action@v1
         with:
           prefix: tracing(-[a-z]+)?
           changelog: "$prefix/CHANGELOG.md"
           title: "$prefix $version"
-          branch: v0.1.x
+          branch: main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

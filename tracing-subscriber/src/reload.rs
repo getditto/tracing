@@ -197,7 +197,7 @@ where
         // actually point to the global static singleton `NoneLayerMarker`,
         // rather than to a field inside the lock.
         if id == TypeId::of::<layer::NoneLayerMarker>() {
-            return try_lock!(self.inner.read(), else return None).downcast_raw(id);
+            unsafe { return try_lock!(self.inner.read(), else return None).downcast_raw(id) }
         }
 
         None
@@ -272,7 +272,7 @@ impl<L, S> Layer<L, S> {
     /// Returns a `Handle` that can be used to reload the wrapped [`Layer`] or [`Filter`].
     ///
     /// [`Layer`]: crate::layer::Layer
-    /// [`Filter`]: crate::filter::Filter
+    /// [`Filter`]: crate::layer::Filter
     pub fn handle(&self) -> Handle<L, S> {
         Handle {
             inner: Arc::downgrade(&self.inner),
@@ -317,6 +317,16 @@ impl<L, S> Handle<L, S> {
         drop(lock);
 
         callsite::rebuild_interest_cache();
+
+        // If the `log` crate compatibility feature is in use, set `log`'s max
+        // level as well, in case the max `tracing` level changed. We do this
+        // *after* rebuilding the interest cache, as that's when the `tracing`
+        // max level filter is re-computed.
+        #[cfg(feature = "tracing-log")]
+        tracing_log::log::set_max_level(tracing_log::AsLog::as_log(
+            &crate::filter::LevelFilter::current(),
+        ));
+
         Ok(())
     }
 
