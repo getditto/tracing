@@ -9,29 +9,29 @@
 /// ```
 use futures::future::join_all;
 use std::error::Error;
-use tracing::{debug, info};
+use tracing::{debug_internal, info_internal};
 use tracing_attributes::instrument;
 
 #[instrument]
 async fn parent_task(subtasks: usize) {
-    info!("spawning subtasks...");
+    info_internal!("spawning subtasks...");
     let subtasks = (1..=subtasks)
         .map(|number| {
-            debug!(message = "creating subtask;", number);
+            debug_internal!(message = "creating subtask;", number);
             subtask(number)
         })
         .collect::<Vec<_>>();
 
     let result = join_all(subtasks).await;
 
-    debug!("all subtasks completed");
+    debug_internal!("all subtasks completed");
     let sum: usize = result.into_iter().sum();
-    info!(sum);
+    info_internal!(sum);
 }
 
 #[instrument]
 async fn subtask(number: usize) -> usize {
-    info!("polling subtask...");
+    info_internal!("polling subtask...");
     number
 }
 

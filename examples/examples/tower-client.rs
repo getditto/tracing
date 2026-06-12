@@ -2,20 +2,20 @@ use http::{Method, Request, Uri};
 use hyper::{client::Client, Body};
 use std::time::Duration;
 use tower::{Service, ServiceBuilder};
-use tracing::info;
+use tracing::info_internal;
 use tracing_tower::request_span;
 
 type Err = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 fn req_span<A>(req: &Request<A>) -> tracing::Span {
-    let span = tracing::info_span!(
+    let span = tracing::info_span_internal!(
         "request",
         req.method = ?req.method(),
         req.uri = ?req.uri(),
         req.version = ?req.version(),
         headers = ?req.headers()
     );
-    tracing::info!(parent: &span, "sending request");
+    tracing::info_internal!(parent: &span, "sending request");
     span
 }
 
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Err> {
         .expect("Unable to build request; this is a bug.");
 
     let res = svc.call(req).await?;
-    info!(message = "got a response", res.headers = ?res.headers());
+    info_internal!(message = "got a response", res.headers = ?res.headers());
 
     Ok(())
 }

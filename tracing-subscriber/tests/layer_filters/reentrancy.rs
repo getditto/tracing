@@ -52,7 +52,7 @@ fn disabled_span_inside_event() {
 
     // Regardless of anything else, the layer should *not* receive this event.
     // If this one gets through, something else is wrong!
-    tracing::trace!("plain event");
+    tracing::trace_internal!("plain event");
 
     #[tracing::instrument(level = "trace")]
     fn instrumented() -> &'static str {
@@ -63,8 +63,8 @@ fn disabled_span_inside_event() {
     // run between the enablement determination of the event and its actual
     // processing, causing buggy per-layer filters to clobber their own filter
     // state.
-    tracing::trace!("formatted into the message: {}", instrumented());
-    tracing::trace!(bar = %instrumented(), "as the value of a field");
+    tracing::trace_internal!("formatted into the message: {}", instrumented());
+    tracing::trace_internal!(bar = %instrumented(), "as the value of a field");
 
     handle.assert_finished();
 }
@@ -97,7 +97,7 @@ fn enabled_span_inside_event() {
 
     // Regardless of anything else, the layer should *not* receive this event.
     // If this one gets through, something else is wrong!
-    tracing::trace!("plain event");
+    tracing::trace_internal!("plain event");
 
     #[tracing::instrument(level = "error")]
     fn instrumented() -> &'static str {
@@ -108,8 +108,8 @@ fn enabled_span_inside_event() {
     // run between the enablement determination of the event and its actual
     // processing, causing buggy per-layer filters to clobber their own filter
     // state.
-    tracing::trace!("formatted into the message: {}", instrumented());
-    tracing::trace!(bar = %instrumented(), "as the value of a field");
+    tracing::trace_internal!("formatted into the message: {}", instrumented());
+    tracing::trace_internal!(bar = %instrumented(), "as the value of a field");
 
     handle.assert_finished();
 }
@@ -128,10 +128,10 @@ fn disabled_event_inside_event() {
 
     // Regardless of anything else, the layer should *not* receive this event.
     // If this one gets through, something else is wrong!
-    tracing::trace!("plain event");
+    tracing::trace_internal!("plain event");
 
     fn nested_event() -> &'static str {
-        tracing::trace!("this is a nested event");
+        tracing::trace_internal!("this is a nested event");
         "foo"
     }
 
@@ -139,8 +139,8 @@ fn disabled_event_inside_event() {
     // run between the enablement determination of the event and its actual
     // processing, causing buggy per-layer filters to clobber their own filter
     // state.
-    tracing::trace!("formatted into the message: {}", nested_event());
-    tracing::trace!(bar = %nested_event(), "as the value of a field");
+    tracing::trace_internal!("formatted into the message: {}", nested_event());
+    tracing::trace_internal!(bar = %nested_event(), "as the value of a field");
 
     handle.assert_finished();
 }
@@ -162,10 +162,10 @@ fn enabled_event_inside_event() {
 
     // Regardless of anything else, the layer should *not* receive this event.
     // If this one gets through, something else is wrong!
-    tracing::trace!("plain event");
+    tracing::trace_internal!("plain event");
 
     fn nested_event() -> &'static str {
-        tracing::error!("this is a nested event");
+        tracing::error_internal!("this is a nested event");
         "foo"
     }
 
@@ -173,8 +173,8 @@ fn enabled_event_inside_event() {
     // run between the enablement determination of the event and its actual
     // processing, causing buggy per-layer filters to clobber their own filter
     // state.
-    tracing::trace!("formatted into the message: {}", nested_event());
-    tracing::trace!(bar = %nested_event(), "as the value of a field");
+    tracing::trace_internal!("formatted into the message: {}", nested_event());
+    tracing::trace_internal!(bar = %nested_event(), "as the value of a field");
 
     handle.assert_finished();
 }
@@ -190,8 +190,11 @@ fn inline_event_in_event_macro() {
         .with(LevelFilter::TRACE)
         .set_default();
 
-    tracing::trace!("in the message: {:?}", tracing::trace!("inline event"));
-    tracing::trace!(bar = ?tracing::trace!("inline event"), "in a field");
+    tracing::trace_internal!(
+        "in the message: {:?}",
+        tracing::trace_internal!("inline event")
+    );
+    tracing::trace_internal!(bar = ?tracing::trace_internal!("inline event"), "in a field");
 
     handle.assert_finished();
 }
@@ -214,7 +217,7 @@ fn recursive_events() {
             return 0;
         }
 
-        tracing::trace!(result = %recurse(n - 1), "recursing");
+        tracing::trace_internal!(result = %recurse(n - 1), "recursing");
         n
     }
 

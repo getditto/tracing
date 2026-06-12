@@ -1,5 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use tracing::{span, Level};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use tracing::{Level, span_internal};
 
 mod shared;
 
@@ -12,7 +12,7 @@ fn bench(c: &mut Criterion) {
 
 #[inline]
 fn mk_span(i: u64) -> tracing::Span {
-    span!(Level::TRACE, "span", i = i)
+    span_internal!(Level::TRACE, "span", i = i)
 }
 
 const N_SPANS: usize = 100;

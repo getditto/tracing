@@ -47,10 +47,10 @@ fn bench_static(c: &mut Criterion) {
     group.bench_function("baseline_single_threaded", |b| {
         tracing::subscriber::with_default(EnabledSubscriber, || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
-                tracing::debug!(target: "static_filter", "hi");
-                tracing::warn!(target: "static_filter", "hi");
-                tracing::trace!(target: "foo", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
+                tracing::debug_internal!(target: "static_filter", "hi");
+                tracing::warn_internal!(target: "static_filter", "hi");
+                tracing::trace_internal!(target: "foo", "hi");
             })
         });
     });
@@ -60,10 +60,10 @@ fn bench_static(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
-                tracing::debug!(target: "static_filter", "hi");
-                tracing::warn!(target: "static_filter", "hi");
-                tracing::trace!(target: "foo", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
+                tracing::debug_internal!(target: "static_filter", "hi");
+                tracing::warn_internal!(target: "static_filter", "hi");
+                tracing::trace_internal!(target: "foo", "hi");
             })
         });
     });
@@ -73,7 +73,7 @@ fn bench_static(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -83,7 +83,7 @@ fn bench_static(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -93,7 +93,7 @@ fn bench_static(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::debug!(target: "static_filter", "hi");
+                tracing::debug_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -103,7 +103,7 @@ fn bench_static(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::trace!(target: "static_filter", "hi");
+                tracing::trace_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -111,7 +111,7 @@ fn bench_static(c: &mut Criterion) {
         let filter = "foo=info".parse::<EnvFilter>().expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -121,7 +121,7 @@ fn bench_static(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -133,16 +133,16 @@ fn bench_static(c: &mut Criterion) {
                 let bench = MultithreadedBench::new(dispatch.clone());
                 let elapsed = bench
                     .thread(|| {
-                        tracing::info!(target: "static_filter", "hi");
+                        tracing::info_internal!(target: "static_filter", "hi");
                     })
                     .thread(|| {
-                        tracing::debug!(target: "static_filter", "hi");
+                        tracing::debug_internal!(target: "static_filter", "hi");
                     })
                     .thread(|| {
-                        tracing::warn!(target: "static_filter", "hi");
+                        tracing::warn_internal!(target: "static_filter", "hi");
                     })
                     .thread(|| {
-                        tracing::warn!(target: "foo", "hi");
+                        tracing::warn_internal!(target: "foo", "hi");
                     })
                     .run();
                 total += elapsed;
@@ -161,16 +161,16 @@ fn bench_static(c: &mut Criterion) {
                 let bench = MultithreadedBench::new(dispatch.clone());
                 let elapsed = bench
                     .thread(|| {
-                        tracing::info!(target: "static_filter", "hi");
+                        tracing::info_internal!(target: "static_filter", "hi");
                     })
                     .thread(|| {
-                        tracing::debug!(target: "static_filter", "hi");
+                        tracing::debug_internal!(target: "static_filter", "hi");
                     })
                     .thread(|| {
-                        tracing::warn!(target: "static_filter", "hi");
+                        tracing::warn_internal!(target: "static_filter", "hi");
                     })
                     .thread(|| {
-                        tracing::warn!(target: "foo", "hi");
+                        tracing::warn_internal!(target: "foo", "hi");
                     })
                     .run();
                 total += elapsed;
@@ -187,14 +187,14 @@ fn bench_dynamic(c: &mut Criterion) {
     group.bench_function("baseline_single_threaded", |b| {
         tracing::subscriber::with_default(EnabledSubscriber, || {
             b.iter(|| {
-                tracing::info_span!("foo").in_scope(|| {
-                    tracing::info!("hi");
-                    tracing::debug!("hi");
+                tracing::info_span_internal!("foo").in_scope(|| {
+                    tracing::info_internal!("hi");
+                    tracing::debug_internal!("hi");
                 });
-                tracing::info_span!("bar").in_scope(|| {
-                    tracing::warn!("hi");
+                tracing::info_span_internal!("bar").in_scope(|| {
+                    tracing::warn_internal!("hi");
                 });
-                tracing::trace!("hi");
+                tracing::trace_internal!("hi");
             })
         });
     });
@@ -202,14 +202,14 @@ fn bench_dynamic(c: &mut Criterion) {
         let filter = "[foo]=trace".parse::<EnvFilter>().expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info_span!("foo").in_scope(|| {
-                    tracing::info!("hi");
-                    tracing::debug!("hi");
+                tracing::info_span_internal!("foo").in_scope(|| {
+                    tracing::info_internal!("hi");
+                    tracing::debug_internal!("hi");
                 });
-                tracing::info_span!("bar").in_scope(|| {
-                    tracing::warn!("hi");
+                tracing::info_span_internal!("bar").in_scope(|| {
+                    tracing::warn_internal!("hi");
                 });
-                tracing::trace!("hi");
+                tracing::trace_internal!("hi");
             })
         });
     });
@@ -221,22 +221,22 @@ fn bench_dynamic(c: &mut Criterion) {
                 let bench = MultithreadedBench::new(dispatch.clone());
                 let elapsed = bench
                     .thread(|| {
-                        let span = tracing::info_span!("foo");
+                        let span = tracing::info_span_internal!("foo");
                         let _ = span.enter();
-                        tracing::info!("hi");
+                        tracing::info_internal!("hi");
                     })
                     .thread(|| {
-                        let span = tracing::info_span!("foo");
+                        let span = tracing::info_span_internal!("foo");
                         let _ = span.enter();
-                        tracing::debug!("hi");
+                        tracing::debug_internal!("hi");
                     })
                     .thread(|| {
-                        let span = tracing::info_span!("bar");
+                        let span = tracing::info_span_internal!("bar");
                         let _ = span.enter();
-                        tracing::debug!("hi");
+                        tracing::debug_internal!("hi");
                     })
                     .thread(|| {
-                        tracing::trace!("hi");
+                        tracing::trace_internal!("hi");
                     })
                     .run();
                 total += elapsed;
@@ -253,22 +253,22 @@ fn bench_dynamic(c: &mut Criterion) {
                 let bench = MultithreadedBench::new(dispatch.clone());
                 let elapsed = bench
                     .thread(|| {
-                        let span = tracing::info_span!("foo");
+                        let span = tracing::info_span_internal!("foo");
                         let _ = span.enter();
-                        tracing::info!("hi");
+                        tracing::info_internal!("hi");
                     })
                     .thread(|| {
-                        let span = tracing::info_span!("foo");
+                        let span = tracing::info_span_internal!("foo");
                         let _ = span.enter();
-                        tracing::debug!("hi");
+                        tracing::debug_internal!("hi");
                     })
                     .thread(|| {
-                        let span = tracing::info_span!("bar");
+                        let span = tracing::info_span_internal!("bar");
                         let _ = span.enter();
-                        tracing::debug!("hi");
+                        tracing::debug_internal!("hi");
                     })
                     .thread(|| {
-                        tracing::trace!("hi");
+                        tracing::trace_internal!("hi");
                     })
                     .run();
                 total += elapsed;
@@ -288,7 +288,7 @@ fn bench_mixed(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::info!(target: "static_filter", "hi");
+                tracing::info_internal!(target: "static_filter", "hi");
             })
         });
     });
@@ -298,7 +298,7 @@ fn bench_mixed(c: &mut Criterion) {
             .expect("should parse");
         tracing::subscriber::with_default(EnabledSubscriber.with(filter), || {
             b.iter(|| {
-                tracing::trace!(target: "static_filter", "hi");
+                tracing::trace_internal!(target: "static_filter", "hi");
             })
         });
     });

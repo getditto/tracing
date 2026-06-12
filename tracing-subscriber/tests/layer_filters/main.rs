@@ -39,9 +39,9 @@ fn basic_layer_filters() {
         .with(info_layer.with_filter(LevelFilter::INFO))
         .set_default();
 
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!("hello info");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!("hello info");
 
     trace_handle.assert_finished();
     debug_handle.assert_finished();
@@ -74,9 +74,9 @@ fn basic_layer_filter_spans() {
         .with(info_layer.with_filter(LevelFilter::INFO))
         .set_default();
 
-    tracing::trace_span!("hello trace");
-    tracing::debug_span!("hello debug");
-    tracing::info_span!("hello info");
+    tracing::trace_span_internal!("hello trace");
+    tracing::debug_span_internal!("hello debug");
+    tracing::info_span_internal!("hello info");
 
     trace_handle.assert_finished();
     debug_handle.assert_finished();
@@ -97,11 +97,11 @@ fn global_filters_subscribers_still_work() {
         .with(LevelFilter::INFO)
         .set_default();
 
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!("hello info");
-    tracing::warn!("hello warn");
-    tracing::error!("hello error");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!("hello info");
+    tracing::warn_internal!("hello warn");
+    tracing::error_internal!("hello error");
 
     handle.assert_finished();
 }
@@ -125,11 +125,11 @@ fn global_filter_interests_are_cached() {
         .with(LevelFilter::INFO)
         .set_default();
 
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!("hello info");
-    tracing::warn!("hello warn");
-    tracing::error!("hello error");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!("hello info");
+    tracing::warn_internal!("hello warn");
+    tracing::error_internal!("hello error");
 
     handle.assert_finished();
 }
@@ -148,11 +148,11 @@ fn global_filters_affect_subscriber_filters() {
         .with(LevelFilter::INFO)
         .set_default();
 
-    tracing::trace!("hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!("hello info");
-    tracing::warn!("hello warn");
-    tracing::error!("hello error");
+    tracing::trace_internal!("hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!("hello info");
+    tracing::warn_internal!("hello warn");
+    tracing::error_internal!("hello error");
 
     handle.assert_finished();
 }
@@ -181,8 +181,8 @@ fn filter_fn() {
         .with(bar.with_filter(filter::filter_fn(|meta| meta.target().starts_with("bar"))))
         .set_default();
 
-    tracing::trace!(target: "foo", "hello foo");
-    tracing::trace!(target: "bar", "hello bar");
+    tracing::trace_internal!(target: "foo", "hello foo");
+    tracing::trace_internal!(target: "bar", "hello bar");
 
     foo_handle.assert_finished();
     bar_handle.assert_finished();

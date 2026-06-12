@@ -20,7 +20,7 @@ fn handles_to_the_same_span_are_equal() {
     // won't enter any spans in this test, so the subscriber won't actually
     // expect to see any spans.
     with_default(subscriber::mock().run(), || {
-        let foo1 = tracing::span!(Level::TRACE, "foo");
+        let foo1 = tracing::span_internal!(Level::TRACE, "foo");
 
         // The purpose of this test is to assert that two clones of the same
         // span are equal, so the clone here is kind of the whole point :)
@@ -38,8 +38,8 @@ fn handles_to_different_spans_are_not_equal() {
     with_default(subscriber::mock().run(), || {
         // Even though these spans have the same name and fields, they will have
         // differing metadata, since they were created on different lines.
-        let foo1 = tracing::span!(Level::TRACE, "foo", bar = 1u64, baz = false);
-        let foo2 = tracing::span!(Level::TRACE, "foo", bar = 1u64, baz = false);
+        let foo1 = tracing::span_internal!(Level::TRACE, "foo", bar = 1u64, baz = false);
+        let foo2 = tracing::span_internal!(Level::TRACE, "foo", bar = 1u64, baz = false);
 
         assert_ne!(foo1, foo2);
     });
@@ -51,7 +51,7 @@ fn handles_to_different_spans_with_the_same_metadata_are_not_equal() {
     // Every time time this function is called, it will return a _new
     // instance_ of a span with the same metadata, name, and fields.
     fn make_span() -> Span {
-        tracing::span!(Level::TRACE, "foo", bar = 1u64, baz = false)
+        tracing::span_internal!(Level::TRACE, "foo", bar = 1u64, baz = false)
     }
 
     with_default(subscriber::mock().run(), || {
@@ -77,7 +77,7 @@ fn spans_always_go_to_the_subscriber_that_tagged_them() {
     let subscriber2 = subscriber::mock().run();
 
     let foo = with_default(subscriber1, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
         foo.in_scope(|| {});
         foo
     });
@@ -102,7 +102,7 @@ fn spans_always_go_to_the_subscriber_that_tagged_them_even_across_threads() {
         .only()
         .run();
     let foo = with_default(subscriber1, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
         foo.in_scope(|| {});
         foo
     });
@@ -128,7 +128,7 @@ fn dropping_a_span_calls_drop_span() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let span = tracing::span!(Level::TRACE, "foo");
+        let span = tracing::span_internal!(Level::TRACE, "foo");
         span.in_scope(|| {});
         drop(span);
     });
@@ -147,8 +147,8 @@ fn span_closes_after_event() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "foo").in_scope(|| {
-            tracing::event!(Level::DEBUG, {}, "my tracing::event!");
+        tracing::span_internal!(Level::TRACE, "foo").in_scope(|| {
+            tracing::event_internal!(Level::DEBUG, {}, "my tracing::event!");
         });
     });
 
@@ -169,10 +169,10 @@ fn new_span_after_event() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "foo").in_scope(|| {
-            tracing::event!(Level::DEBUG, {}, "my tracing::event!");
+        tracing::span_internal!(Level::TRACE, "foo").in_scope(|| {
+            tracing::event_internal!(Level::DEBUG, {}, "my tracing::event!");
         });
-        tracing::span!(Level::TRACE, "bar").in_scope(|| {});
+        tracing::span_internal!(Level::TRACE, "bar").in_scope(|| {});
     });
 
     handle.assert_finished();
@@ -189,8 +189,8 @@ fn event_outside_of_span() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::debug!("my tracing::event!");
-        tracing::span!(Level::TRACE, "foo").in_scope(|| {});
+        tracing::debug_internal!("my tracing::event!");
+        tracing::span_internal!(Level::TRACE, "foo").in_scope(|| {});
     });
 
     handle.assert_finished();
@@ -203,7 +203,7 @@ fn cloning_a_span_calls_clone_span() {
         .clone_span(expect::span().named("foo"))
         .run_with_handle();
     with_default(subscriber, || {
-        let span = tracing::span!(Level::TRACE, "foo");
+        let span = tracing::span_internal!(Level::TRACE, "foo");
         // Allow the "redundant" `.clone` since it is used to call into the `.clone_span` hook.
         #[allow(clippy::redundant_clone)]
         let _span2 = span.clone();
@@ -221,7 +221,7 @@ fn drop_span_when_exiting_dispatchers_context() {
         .drop_span(expect::span().named("foo"))
         .run_with_handle();
     with_default(subscriber, || {
-        let span = tracing::span!(Level::TRACE, "foo");
+        let span = tracing::span_internal!(Level::TRACE, "foo");
         let _span2 = span.clone();
         drop(span);
     });
@@ -244,7 +244,7 @@ fn clone_and_drop_span_always_go_to_the_subscriber_that_tagged_the_span() {
     let subscriber2 = subscriber::mock().only().run();
 
     let foo = with_default(subscriber1, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
         foo.in_scope(|| {});
         foo
     });
@@ -270,7 +270,7 @@ fn span_closes_when_exited() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
 
         foo.in_scope(|| {});
 
@@ -291,9 +291,9 @@ fn enter() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
         let _enter = foo.enter();
-        tracing::debug!("dropping guard...");
+        tracing::debug_internal!("dropping guard...");
     });
 
     handle.assert_finished();
@@ -310,8 +310,8 @@ fn entered() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let _span = tracing::span!(Level::TRACE, "foo").entered();
-        tracing::debug!("dropping guard...");
+        let _span = tracing::span_internal!(Level::TRACE, "foo").entered();
+        tracing::debug_internal!("dropping guard...");
     });
 
     handle.assert_finished();
@@ -328,9 +328,9 @@ fn entered_api() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        let span = tracing::span!(Level::TRACE, "foo").entered();
+        let span = tracing::span_internal!(Level::TRACE, "foo").entered();
         let _derefs_to_span = span.id();
-        tracing::debug!("exiting span...");
+        tracing::debug_internal!("exiting span...");
         let _: Span = span.exit();
     });
 
@@ -355,7 +355,7 @@ fn moved_field() {
         .run_with_handle();
     with_default(subscriber, || {
         let from = "my span";
-        let span = tracing::span!(
+        let span = tracing::span_internal!(
             Level::TRACE,
             "foo",
             bar = display(format!("hello from {}", from))
@@ -378,7 +378,7 @@ fn dotted_field_name() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "foo", fields.bar = true);
+        tracing::span_internal!(Level::TRACE, "foo", fields.bar = true);
     });
 
     handle.assert_finished();
@@ -404,7 +404,7 @@ fn borrowed_field() {
     with_default(subscriber, || {
         let from = "my span";
         let mut message = format!("hello from {}", from);
-        let span = tracing::span!(Level::TRACE, "foo", bar = display(&message));
+        let span = tracing::span_internal!(Level::TRACE, "foo", bar = display(&message));
         span.in_scope(|| {
             message.insert_str(10, " inside");
         });
@@ -451,8 +451,8 @@ fn move_field_out_of_struct() {
             x: 3.234,
             y: -1.223,
         };
-        let foo = tracing::span!(Level::TRACE, "foo", x = debug(pos.x), y = debug(pos.y));
-        let bar = tracing::span!(Level::TRACE, "bar", position = debug(pos));
+        let foo = tracing::span_internal!(Level::TRACE, "foo", x = debug(pos.x), y = debug(pos.y));
+        let bar = tracing::span_internal!(Level::TRACE, "bar", position = debug(pos));
         foo.in_scope(|| {});
         bar.in_scope(|| {});
     });
@@ -475,7 +475,7 @@ fn float_values() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo", x = 3.234, y = -1.223);
+        let foo = tracing::span_internal!(Level::TRACE, "foo", x = 3.234, y = -1.223);
         foo.in_scope(|| {});
     });
 
@@ -567,7 +567,7 @@ fn record_new_value_for_field() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let span = tracing::span!(Level::TRACE, "foo", bar = 5, baz = false);
+        let span = tracing::span_internal!(Level::TRACE, "foo", bar = 5, baz = false);
         span.record("baz", true);
         span.in_scope(|| {})
     });
@@ -602,7 +602,7 @@ fn record_new_values_for_fields() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let span = tracing::span!(Level::TRACE, "foo", bar = 4, baz = false);
+        let span = tracing::span_internal!(Level::TRACE, "foo", bar = 4, baz = false);
         span.record("bar", 5);
         span.record("baz", true);
         span.in_scope(|| {})
@@ -625,7 +625,7 @@ fn new_span_with_target_and_log_level() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::span!(target: "app_span", Level::DEBUG, "foo");
+        tracing::span_internal!(target: "app_span", Level::DEBUG, "foo");
     });
 
     handle.assert_finished();
@@ -640,7 +640,7 @@ fn explicit_root_span_is_root() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::span!(parent: None, Level::TRACE, "foo");
+        tracing::span_internal!(parent: None, Level::TRACE, "foo");
     });
 
     handle.assert_finished();
@@ -658,8 +658,8 @@ fn explicit_root_span_is_root_regardless_of_ctx() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "foo").in_scope(|| {
-            tracing::span!(parent: None, Level::TRACE, "bar");
+        tracing::span_internal!(Level::TRACE, "foo").in_scope(|| {
+            tracing::span_internal!(parent: None, Level::TRACE, "bar");
         })
     });
 
@@ -680,8 +680,8 @@ fn explicit_child() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
-        tracing::span!(parent: foo.id(), Level::TRACE, "bar");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
+        tracing::span_internal!(parent: foo.id(), Level::TRACE, "bar");
     });
 
     handle.assert_finished();
@@ -701,12 +701,12 @@ fn explicit_child_at_levels() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
-        tracing::trace_span!(parent: foo.id(), "a");
-        tracing::debug_span!(parent: foo.id(), "b");
-        tracing::info_span!(parent: foo.id(), "c");
-        tracing::warn_span!(parent: foo.id(), "d");
-        tracing::error_span!(parent: foo.id(), "e");
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
+        tracing::trace_span_internal!(parent: foo.id(), "a");
+        tracing::debug_span_internal!(parent: foo.id(), "b");
+        tracing::info_span_internal!(parent: foo.id(), "c");
+        tracing::warn_span_internal!(parent: foo.id(), "d");
+        tracing::error_span_internal!(parent: foo.id(), "e");
     });
 
     handle.assert_finished();
@@ -729,9 +729,9 @@ fn explicit_child_regardless_of_ctx() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let foo = tracing::span!(Level::TRACE, "foo");
-        tracing::span!(Level::TRACE, "bar")
-            .in_scope(|| tracing::span!(parent: foo.id(), Level::TRACE, "baz"))
+        let foo = tracing::span_internal!(Level::TRACE, "foo");
+        tracing::span_internal!(Level::TRACE, "bar")
+            .in_scope(|| tracing::span_internal!(parent: foo.id(), Level::TRACE, "baz"))
     });
 
     handle.assert_finished();
@@ -746,7 +746,7 @@ fn contextual_root() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "foo");
+        tracing::span_internal!(Level::TRACE, "foo");
     });
 
     handle.assert_finished();
@@ -768,8 +768,8 @@ fn contextual_child() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "foo").in_scope(|| {
-            tracing::span!(Level::TRACE, "bar");
+        tracing::span_internal!(Level::TRACE, "foo").in_scope(|| {
+            tracing::span_internal!(Level::TRACE, "bar");
         })
     });
 
@@ -790,7 +790,7 @@ fn display_shorthand() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "my_span", my_field = %"hello world");
+        tracing::span_internal!(Level::TRACE, "my_span", my_field = %"hello world");
     });
 
     handle.assert_finished();
@@ -810,7 +810,7 @@ fn debug_shorthand() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "my_span", my_field = ?"hello world");
+        tracing::span_internal!(Level::TRACE, "my_span", my_field = ?"hello world");
     });
 
     handle.assert_finished();
@@ -831,7 +831,7 @@ fn both_shorthands() {
         .only()
         .run_with_handle();
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "my_span", display_field = %"hello world", debug_field = ?"hello world");
+        tracing::span_internal!(Level::TRACE, "my_span", display_field = %"hello world", debug_field = ?"hello world");
     });
 
     handle.assert_finished();
@@ -855,7 +855,7 @@ fn constant_field_name() {
 
     with_default(subscriber, || {
         const FOO: &str = "foo";
-        tracing::span!(
+        tracing::span_internal!(
             Level::TRACE,
             "my_span",
             { std::convert::identity(FOO) } = "bar",

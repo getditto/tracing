@@ -4,7 +4,7 @@ mod shared;
 
 fn bench(c: &mut Criterion) {
     shared::for_all_recording(&mut c.benchmark_group("event"), |b| {
-        b.iter(|| tracing::info!("hello world!"))
+        b.iter(|| tracing::info_internal!("hello world!"))
     });
 }
 

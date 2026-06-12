@@ -31,7 +31,10 @@ use std::env;
 use std::error::Error;
 use std::net::SocketAddr;
 
-use tracing::{debug, info, info_span, trace_span, warn, Instrument as _};
+use tracing::{
+    debug_internal, info_internal, info_span_internal, trace_span_internal, warn_internal,
+    Instrument as _,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
@@ -54,13 +57,13 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // above and must be associated with an event loop.
     let listener = TcpListener::bind(&addr).await?;
     // Use `fmt::Debug` impl for `addr` using the `%` symbol
-    info!(message = "Listening on", %addr);
+    info_internal!(message = "Listening on", %addr);
 
     loop {
         // Asynchronously wait for an inbound socket.
         let (mut socket, peer_addr) = listener.accept().await?;
 
-        info!(message = "Got connection from", %peer_addr);
+        info_internal!(message = "Got connection from", %peer_addr);
 
         // And this is where much of the magic of this server happens. We
         // crucially want all clients to make progress concurrently, rather than
@@ -79,16 +82,16 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
                     .read(&mut buf)
                     .map(|bytes| {
                         if let Ok(n) = bytes {
-                            debug!(bytes_read = n);
+                            debug_internal!(bytes_read = n);
                         }
 
                         bytes
                     })
                     .map_err(|error| {
-                        warn!(%error);
+                        warn_internal!(%error);
                         error
                     })
-                    .instrument(trace_span!("read"))
+                    .instrument(trace_span_internal!("read"))
                     .await
                     .expect("failed to read data from socket");
 
@@ -100,23 +103,23 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
                     .write_all(&buf[0..n])
                     .map(|bytes| {
                         if let Ok(()) = bytes {
-                            debug!(bytes_written = n);
+                            debug_internal!(bytes_written = n);
                         }
 
                         bytes
                     })
                     .map_err(|error| {
-                        warn!(%error);
+                        warn_internal!(%error);
                         error
                     })
-                    .instrument(trace_span!("write"))
+                    .instrument(trace_span_internal!("write"))
                     .await
                     .expect("failed to write data to socket");
 
-                info!(message = "echo'd data", %peer_addr, size = n);
+                info_internal!(message = "echo'd data", %peer_addr, size = n);
             }
         })
-        .instrument(info_span!("echo", %peer_addr))
+        .instrument(info_span_internal!("echo", %peer_addr))
         .await?;
     }
 }

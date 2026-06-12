@@ -6,7 +6,7 @@ use std::{
     thread::sleep,
     time::Duration,
 };
-use tracing::{span, Level};
+use tracing::{Level, span_internal};
 use tracing_flame::FlameLayer;
 use tracing_subscriber::{prelude::*, registry::Registry};
 
@@ -51,11 +51,11 @@ fn main() {
     let guard = setup_global_subscriber(tmp_dir.path());
 
     // do a bunch of span entering and exiting to simulate a program running
-    span!(Level::ERROR, "outer").in_scope(|| {
+    span_internal!(Level::ERROR, "outer").in_scope(|| {
         sleep(Duration::from_millis(10));
-        span!(Level::ERROR, "Inner").in_scope(|| {
+        span_internal!(Level::ERROR, "Inner").in_scope(|| {
             sleep(Duration::from_millis(50));
-            span!(Level::ERROR, "Innermost").in_scope(|| {
+            span_internal!(Level::ERROR, "Innermost").in_scope(|| {
                 sleep(Duration::from_millis(50));
             });
         });

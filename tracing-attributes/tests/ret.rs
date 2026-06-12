@@ -92,7 +92,7 @@ fn test_warn() {
 #[instrument(ret)]
 fn ret_mut(a: &mut i32) -> i32 {
     *a *= 2;
-    tracing::info!(?a);
+    tracing::info_internal!(?a);
     *a
 }
 

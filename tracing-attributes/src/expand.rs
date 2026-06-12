@@ -223,15 +223,16 @@ fn gen_block<B: ToTokens>(
 
         let custom_fields = &args.fields;
 
-        quote!(tracing::span!(
-            target: #target,
-            #(parent: #parent,)*
-            #level,
-            #span_name,
-            #(#quoted_fields,)*
-            #custom_fields
-
-        ))
+        quote!({
+            tracing::span_internal!(
+                target: #target,
+                #(parent: #parent,)*
+                #level,
+                #span_name,
+                #(#quoted_fields,)*
+                #custom_fields
+            )
+        })
     })();
 
     let target = args.target();
@@ -240,12 +241,12 @@ fn gen_block<B: ToTokens>(
         Some(event_args) => {
             let level_tokens = event_args.level(Level::Error);
             match event_args.mode {
-                FormatMode::Default | FormatMode::Display => Some(quote!(
-                    tracing::event!(target: #target, #level_tokens, error = %e)
-                )),
-                FormatMode::Debug => Some(quote!(
-                    tracing::event!(target: #target, #level_tokens, error = ?e)
-                )),
+                FormatMode::Default | FormatMode::Display => Some(quote!({
+                    tracing::event_internal!(target: #target, #level_tokens, error = %e)
+                })),
+                FormatMode::Debug => Some(quote!({
+                    tracing::event_internal!(target: #target, #level_tokens, error = ?e)
+                })),
             }
         }
         _ => None,
@@ -255,12 +256,12 @@ fn gen_block<B: ToTokens>(
         Some(event_args) => {
             let level_tokens = event_args.level(args_level);
             match event_args.mode {
-                FormatMode::Display => Some(quote!(
-                    tracing::event!(target: #target, #level_tokens, return = %x)
-                )),
-                FormatMode::Default | FormatMode::Debug => Some(quote!(
-                    tracing::event!(target: #target, #level_tokens, return = ?x)
-                )),
+                FormatMode::Display => Some(quote!({
+                    tracing::event_internal!(target: #target, #level_tokens, return = %x)
+                })),
+                FormatMode::Default | FormatMode::Debug => Some(quote!({
+                    tracing::event_internal!(target: #target, #level_tokens, return = ?x)
+                })),
             }
         }
         _ => None,

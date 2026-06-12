@@ -12,7 +12,7 @@
 //!
 //! Therefore, when `valuable` support is not enabled, this example falls back to using
 //! `fmt::Debug` to record fields that implement `valuable::Valuable`.
-use tracing::{info, info_span};
+use tracing::{info_internal, info_span_internal};
 use valuable::Valuable;
 
 #[derive(Clone, Debug, Valuable)]
@@ -47,12 +47,12 @@ fn main() {
     // If the `valuable` feature is enabled, record `user` using its'
     // `valuable::Valuable` implementation:
     #[cfg(tracing_unstable)]
-    let span = info_span!("Processing", user = user.as_value());
+    let span = info_span_internal!("Processing", user = user.as_value());
 
     // Otherwise, record `user` using its `fmt::Debug` implementation:
     #[cfg(not(tracing_unstable))]
-    let span = info_span!("Processing", user = ?user);
+    let span = info_span_internal!("Processing", user = ?user);
 
     let _handle = span.enter();
-    info!("Nothing to do");
+    info_internal!("Nothing to do");
 }

@@ -5,20 +5,20 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tower::{Service, ServiceBuilder};
 use tracing::dispatcher;
-use tracing::info;
+use tracing::info_internal;
 use tracing_tower::request_span::make;
 
 type Err = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 fn req_span<A>(req: &Request<A>) -> tracing::Span {
-    let span = tracing::info_span!(
+    let span = tracing::info_span_internal!(
         "request",
         req.method = ?req.method(),
         req.uri = ?req.uri(),
         req.version = ?req.version(),
         req.headers = ?req.headers()
     );
-    tracing::info!(parent: &span, "received request");
+    tracing::info_internal!(parent: &span, "received request");
     span
 }
 
@@ -47,7 +47,7 @@ impl Service<Request<Body>> for Svc {
             let body = Body::from(Vec::from(&b"heyo!"[..]));
             rsp.status(200).body(body).unwrap()
         };
-        let span = tracing::info_span!(
+        let span = tracing::info_span_internal!(
             "response",
             rsp.status = ?rsp.status(),
             rsp.version = ?rsp.version(),
@@ -61,7 +61,7 @@ impl Service<Request<Body>> for Svc {
             }
         });
         let _guard = span.enter();
-        info!("sending response");
+        info_internal!("sending response");
         future::ok(rsp)
     }
 }
@@ -95,7 +95,7 @@ async fn main() -> Result<(), Err> {
 
     let addr = "127.0.0.1:3000".parse()?;
     let server = Server::bind(&addr).serve(svc);
-    info!(message = "listening", addr = ?addr);
+    info_internal!(message = "listening", addr = ?addr);
     server.await?;
 
     Ok(())

@@ -17,8 +17,8 @@ fn same_length_targets() {
     let subscriber = subscriber.with(filter);
 
     with_default(subscriber, || {
-        tracing::trace!(target: "foo", "foo");
-        tracing::trace!(target: "bar", "bar");
+        tracing::trace_internal!(target: "foo", "foo");
+        tracing::trace_internal!(target: "bar", "bar");
     });
 
     finished.assert_finished();
@@ -44,8 +44,8 @@ fn same_num_fields_event() {
         .run_with_handle();
     let subscriber = subscriber.with(filter);
     with_default(subscriber, || {
-        tracing::trace!(foo = 1);
-        tracing::trace!(bar = 3);
+        tracing::trace_internal!(foo = 1);
+        tracing::trace_internal!(bar = 3);
     });
 
     finished.assert_finished();
@@ -73,8 +73,8 @@ fn same_num_fields_and_name_len() {
         .run_with_handle();
     let subscriber = subscriber.with(filter);
     with_default(subscriber, || {
-        tracing::trace_span!("foo", bar = 1);
-        tracing::trace_span!("baz", boz = 1);
+        tracing::trace_span_internal!("foo", bar = 1);
+        tracing::trace_span_internal!("baz", boz = 1);
     });
 
     finished.assert_finished();

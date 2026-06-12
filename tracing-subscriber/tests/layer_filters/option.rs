@@ -20,7 +20,7 @@ fn option_some() {
     let _guard = tracing_subscriber::registry().with(layer).set_default();
 
     for i in 0..2 {
-        tracing::info!(i);
+        tracing::info_internal!(i);
     }
 
     handle.assert_finished();
@@ -38,7 +38,7 @@ fn option_none() {
     let _guard = tracing_subscriber::registry().with(layer).set_default();
 
     for i in 0..2 {
-        tracing::info!(i);
+        tracing::info_internal!(i);
     }
 
     handle.assert_finished();
@@ -58,8 +58,8 @@ fn option_mixed() {
 
     let _guard = tracing_subscriber::registry().with(layer).set_default();
 
-    tracing::info!(target: "interesting", x="foo");
-    tracing::info!(target: "boring", x="bar");
+    tracing::info_internal!(target: "interesting", x="foo");
+    tracing::info_internal!(target: "boring", x="bar");
 
     handle.assert_finished();
 }
@@ -95,8 +95,8 @@ fn none_max_level_hint() {
     assert!(subscriber.max_level_hint().is_none());
 
     let _guard = subscriber.set_default();
-    tracing::info!(target: "interesting", x="foo");
-    tracing::debug!(target: "sometimes_interesting", x="bar");
+    tracing::info_internal!(target: "interesting", x="foo");
+    tracing::debug_internal!(target: "sometimes_interesting", x="bar");
 
     handle_none.assert_finished();
     handle_filter_fn.assert_finished();
@@ -135,8 +135,8 @@ fn some_max_level_hint() {
     assert_eq!(subscriber.max_level_hint(), Some(LevelFilter::DEBUG));
 
     let _guard = subscriber.set_default();
-    tracing::info!(target: "interesting", x="foo");
-    tracing::debug!(target: "sometimes_interesting", x="bar");
+    tracing::info_internal!(target: "interesting", x="foo");
+    tracing::debug_internal!(target: "sometimes_interesting", x="bar");
 
     handle_some.assert_finished();
     handle_filter_fn.assert_finished();

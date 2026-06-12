@@ -51,11 +51,11 @@ fn per_layer_event_field_filtering() {
         .with(expect.with_filter(FilterEvent))
         .set_default();
 
-    tracing::trace!(enable = true, "hello trace");
-    tracing::debug!("hello debug");
-    tracing::info!(enable = true, "hello info");
-    tracing::warn!(enable = false, "hello warn");
-    tracing::error!("hello error");
+    tracing::trace_internal!(enable = true, "hello trace");
+    tracing::debug_internal!("hello debug");
+    tracing::info_internal!(enable = true, "hello info");
+    tracing::warn_internal!(enable = false, "hello warn");
+    tracing::error_internal!("hello error");
 
     handle.assert_finished();
 }

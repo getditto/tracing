@@ -3,7 +3,7 @@ macro_rules! make_req_fns {
         $(
             #[inline]
             pub fn $name<A>(req: &http::Request<A>) -> tracing::Span {
-                tracing::span!(
+                tracing::span_internal!(
                     $level,
                     "request",
                     method = ?req.method(),
@@ -22,7 +22,7 @@ make_req_fns! {
 
 #[inline]
 pub fn debug_request<A>(req: &http::Request<A>) -> tracing::Span {
-    tracing::span!(
+    tracing::span_internal!(
         tracing::Level::DEBUG,
         "request",
         method = ?req.method(),
@@ -33,7 +33,7 @@ pub fn debug_request<A>(req: &http::Request<A>) -> tracing::Span {
 
 #[inline]
 pub fn trace_request<A>(req: &http::Request<A>) -> tracing::Span {
-    tracing::span!(
+    tracing::span_internal!(
         tracing::Level::TRACE,
         "request",
         method = ?req.method(),

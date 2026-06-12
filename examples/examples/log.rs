@@ -4,5 +4,5 @@ fn main() {
         .init();
 
     log::debug!("this is a log line");
-    tracing::debug!("this is a tracing line");
+    tracing::debug_internal!("this is a tracing line");
 }

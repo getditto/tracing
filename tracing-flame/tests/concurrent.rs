@@ -1,6 +1,6 @@
 use std::thread::sleep;
 use std::time::Duration;
-use tracing::{span, Level};
+use tracing::{Level, span_internal};
 use tracing_flame::FlameLayer;
 use tracing_subscriber::{prelude::*, registry::Registry};
 
@@ -16,12 +16,12 @@ fn capture_supported() {
     let subscriber = Registry::default().with(flame_layer);
 
     tracing::subscriber::set_global_default(subscriber).expect("Could not set global default");
-    let span = span!(Level::ERROR, "main");
+    let span = span_internal!(Level::ERROR, "main");
     let _guard = span.enter();
 
-    let thread = span!(Level::ERROR, "outer").in_scope(|| {
+    let thread = span_internal!(Level::ERROR, "outer").in_scope(|| {
         sleep(Duration::from_millis(10));
-        let span = span!(Level::ERROR, "Inner");
+        let span = span_internal!(Level::ERROR, "Inner");
         let thread = std::thread::spawn(move || {
             span.in_scope(|| {
                 sleep(Duration::from_millis(50));

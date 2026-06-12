@@ -40,7 +40,7 @@ fn none_interest_cache() {
 
     let _guard = subscriber.set_default();
     for _ in 0..2 {
-        tracing::debug!(target: "always_interesting", x="bar");
+        tracing::debug_internal!(target: "always_interesting", x="bar");
     }
 
     // The `None` filter is unchanging and performs no filtering, so it should

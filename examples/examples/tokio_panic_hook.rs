@@ -21,14 +21,14 @@ async fn main() {
 
     std::panic::set_hook(Box::new(|panic| {
         if let Some(location) = panic.location() {
-            tracing::error!(
+            tracing::error_internal!(
                 message = %panic,
                 panic.file = location.file(),
                 panic.line = location.line(),
                 panic.column = location.column(),
             );
         } else {
-            tracing::error!(message = %panic);
+            tracing::error_internal!(message = %panic);
         }
     }));
 
@@ -38,17 +38,17 @@ async fn main() {
         .collect::<Vec<_>>();
     futures::future::join_all(tasks).await;
 
-    tracing::trace!("all tasks done");
+    tracing::trace_internal!("all tasks done");
 }
 
 #[tracing::instrument]
 async fn check_number(x: i32) {
-    tracing::trace!("checking number...");
+    tracing::trace_internal!("checking number...");
     tokio::task::yield_now().await;
 
     if x % 2 == 0 {
         panic!("I don't work with even numbers!");
     }
 
-    tracing::info!("number checks out!")
+    tracing::info_internal!("number checks out!")
 }

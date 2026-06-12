@@ -269,7 +269,7 @@ mod tests {
     use super::*;
     use crate::ErrorLayer;
     use tracing::subscriber::with_default;
-    use tracing::{span, Level};
+    use tracing::{Level, span_internal};
     use tracing_subscriber::{prelude::*, registry::Registry};
 
     #[test]
@@ -277,7 +277,7 @@ mod tests {
         let subscriber = Registry::default().with(ErrorLayer::default());
 
         with_default(subscriber, || {
-            let span = span!(Level::ERROR, "test span");
+            let span = span_internal!(Level::ERROR, "test span");
             let _guard = span.enter();
 
             let span_trace = SpanTrace::capture();
@@ -306,7 +306,7 @@ mod tests {
         let subscriber = Registry::default();
 
         with_default(subscriber, || {
-            let span = span!(Level::ERROR, "test span");
+            let span = span_internal!(Level::ERROR, "test span");
             let _guard = span.enter();
 
             let span_trace = SpanTrace::capture();

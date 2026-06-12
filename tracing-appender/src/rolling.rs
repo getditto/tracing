@@ -961,22 +961,22 @@ mod test {
             .finish()
             .set_default();
 
-        tracing::info!("file 1");
+        tracing::info_internal!("file 1");
 
         // advance time by one second
         (*clock.lock().unwrap()) += Duration::seconds(1);
 
-        tracing::info!("file 1");
+        tracing::info_internal!("file 1");
 
         // advance time by one hour
         (*clock.lock().unwrap()) += Duration::hours(1);
 
-        tracing::info!("file 2");
+        tracing::info_internal!("file 2");
 
         // advance time by one second
         (*clock.lock().unwrap()) += Duration::seconds(1);
 
-        tracing::info!("file 2");
+        tracing::info_internal!("file 2");
 
         drop(default);
 
@@ -1043,12 +1043,12 @@ mod test {
             .finish()
             .set_default();
 
-        tracing::info!("file 1");
+        tracing::info_internal!("file 1");
 
         // advance time by one second
         (*clock.lock().unwrap()) += Duration::seconds(1);
 
-        tracing::info!("file 1");
+        tracing::info_internal!("file 1");
 
         // advance time by one hour
         (*clock.lock().unwrap()) += Duration::hours(1);
@@ -1058,12 +1058,12 @@ mod test {
         // that the next file actually is newer than the old one.
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        tracing::info!("file 2");
+        tracing::info_internal!("file 2");
 
         // advance time by one second
         (*clock.lock().unwrap()) += Duration::seconds(1);
 
-        tracing::info!("file 2");
+        tracing::info_internal!("file 2");
 
         // advance time by one hour
         (*clock.lock().unwrap()) += Duration::hours(1);
@@ -1071,12 +1071,12 @@ mod test {
         // again, sleep to ensure that the creation timestamps actually differ.
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        tracing::info!("file 3");
+        tracing::info_internal!("file 3");
 
         // advance time by one second
         (*clock.lock().unwrap()) += Duration::seconds(1);
 
-        tracing::info!("file 3");
+        tracing::info_internal!("file 3");
 
         drop(default);
 

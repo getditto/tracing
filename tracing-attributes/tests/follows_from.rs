@@ -32,9 +32,9 @@ fn follows_from_sync_test() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        let cause_a = tracing::span!(Level::TRACE, "cause_a");
-        let cause_b = tracing::span!(Level::TRACE, "cause_b");
-        let cause_c = tracing::span!(Level::TRACE, "cause_c");
+        let cause_a = tracing::span_internal!(Level::TRACE, "cause_a");
+        let cause_b = tracing::span_internal!(Level::TRACE, "cause_b");
+        let cause_c = tracing::span_internal!(Level::TRACE, "cause_c");
 
         with_follows_from_sync(&[cause_a, cause_b, cause_c])
     });
@@ -66,9 +66,9 @@ fn follows_from_async_test() {
 
     with_default(subscriber, || {
         block_on_future(async {
-            let cause_a = tracing::span!(Level::TRACE, "cause_a");
-            let cause_b = tracing::span!(Level::TRACE, "cause_b");
-            let cause_c = tracing::span!(Level::TRACE, "cause_c");
+            let cause_a = tracing::span_internal!(Level::TRACE, "cause_a");
+            let cause_b = tracing::span_internal!(Level::TRACE, "cause_b");
+            let cause_c = tracing::span_internal!(Level::TRACE, "cause_c");
 
             with_follows_from_async(&[cause_a, cause_b, cause_c]).await
         })
@@ -94,7 +94,7 @@ fn follows_from_current_test() {
         .run_with_handle();
 
     with_default(subscriber, || {
-        tracing::span!(Level::TRACE, "cause").in_scope(follows_from_current)
+        tracing::span_internal!(Level::TRACE, "cause").in_scope(follows_from_current)
     });
 
     handle.assert_finished();

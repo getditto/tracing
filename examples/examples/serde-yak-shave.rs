@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use tracing::debug;
+use tracing::debug_internal;
 use tracing_core::{
     event::Event,
     metadata::Metadata,
@@ -87,11 +87,11 @@ fn main() {
 
     tracing::subscriber::with_default(subscriber, || {
         let number_of_yaks = 3;
-        debug!("preparing to shave {} yaks", number_of_yaks);
+        debug_internal!("preparing to shave {} yaks", number_of_yaks);
 
         let number_shaved = yak_shave::shave_all(number_of_yaks);
 
-        debug!(
+        debug_internal!(
             message = "yak shaving completed.",
             all_yaks_shaved = number_shaved == number_of_yaks,
         );
