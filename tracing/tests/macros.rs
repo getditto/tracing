@@ -1173,6 +1173,7 @@ fn event_with_parent() {
     event_internal!(parent: &p, Level::DEBUG, { foo = 2, bar.baz = 79 }, "quux {:?}", true);
     event_internal!(parent: &p, Level::DEBUG, { foo = 2, bar.baz = 79 }, "quux {:?}, {quux}", true, quux = false);
     event_internal!(parent: &p, Level::DEBUG, { foo = ?2, bar.baz = %78 }, "quux");
+    event_internal!(name: "foo", parent: &p, Level::DEBUG, foo = 3, bar.baz = 2, quux = false);
     event_internal!(target: "foo_events", parent: &p, Level::DEBUG, foo = 3, bar.baz = 2, quux = false);
     event_internal!(target: "foo_events", parent: &p, Level::DEBUG, foo = 3, bar.baz = 3,);
     event_internal!(target: "foo_events", parent: &p, Level::DEBUG, "foo");
